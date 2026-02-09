@@ -25,10 +25,9 @@ public class MainApp extends JFrame {
         OverviewPanel overviewPanel = new OverviewPanel();
         tabbedPane.addTab("Parking Map (Live)", null, overviewPanel, "View all spots");
 
-        // Tab 3: Member B's Exit Panel (Placeholder for now)
-        JPanel exitPlaceholder = new JPanel();
-        exitPlaceholder.add(new JLabel("Member B will build the Exit/Payment Screen here next."));
-        tabbedPane.addTab("Vehicle Exit & Payment", null, exitPlaceholder, "Process payments");
+        // Tab 3: Member B's Exit Panel 
+        ExitPanel exitPanel = new ExitPanel();
+        tabbedPane.addTab("Vehicle Exit & Payment", null, exitPanel, "Process payments");
 
         // Tab 4: Member C's Admin Panel (Placeholder for now)
         JPanel adminPlaceholder = new JPanel();
