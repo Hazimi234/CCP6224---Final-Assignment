@@ -4,29 +4,26 @@ public class Vehicle {
     private String licensePlate;
     private String vehicleType; 
     private boolean isVip; 
+    private boolean hasHandicappedCard; // New "Double Verification" check
 
-    public Vehicle(String licensePlate, String vehicleType, boolean isVip) {
+    public Vehicle(String licensePlate, String vehicleType, boolean isVip, boolean hasHandicappedCard) {
         this.licensePlate = licensePlate;
         this.vehicleType = vehicleType;
         this.isVip = isVip;
+        this.hasHandicappedCard = hasHandicappedCard;
     }
 
-    // UPDATED: This now checks "Does it fit?", not "Is it legal?"
-    // This allows non-VIPs to pick Reserved spots (and get fined later).
+    // Physical fit check (Logic remains the same)
     public boolean canFitInSpot(String spotType) {
-        if (vehicleType.equalsIgnoreCase("Motorcycle")) {
-            return spotType.equalsIgnoreCase("Compact");
-        }
+        if (vehicleType.equalsIgnoreCase("Motorcycle")) return spotType.equalsIgnoreCase("Compact");
         
         if (vehicleType.equalsIgnoreCase("Car")) {
-            // Cars fit in Compact, Regular, AND Reserved
             return spotType.equalsIgnoreCase("Compact") || 
                    spotType.equalsIgnoreCase("Regular") || 
                    spotType.equalsIgnoreCase("Reserved");
         }
         
         if (vehicleType.equalsIgnoreCase("SUV") || vehicleType.equalsIgnoreCase("Truck")) {
-            // SUVs fit in Regular AND Reserved
             return spotType.equalsIgnoreCase("Regular") || 
                    spotType.equalsIgnoreCase("Reserved");
         }
@@ -39,4 +36,5 @@ public class Vehicle {
     public String getLicensePlate() { return licensePlate; }
     public String getVehicleType() { return vehicleType; }
     public boolean isVip() { return isVip; }
+    public boolean hasHandicappedCard() { return hasHandicappedCard; }
 }

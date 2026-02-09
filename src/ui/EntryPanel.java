@@ -5,13 +5,16 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.*;
 import java.util.Vector;
-import src.model.Vehicle; // Import our updated model
+import java.text.SimpleDateFormat; // NEW IMPORT
+import java.util.Date;            // NEW IMPORT
+import java.util.TimeZone;        // NEW IMPORT
+import src.model.Vehicle; 
 
 public class EntryPanel extends JPanel {
-    // Components
     private JTextField txtPlate;
     private JComboBox<String> cmbType;
     private JCheckBox chkVip;
+    private JCheckBox chkHandicappedCard; 
     private JTable spotTable;
     private DefaultTableModel tableModel;
     private JButton btnPark;
@@ -21,7 +24,7 @@ public class EntryPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // --- TOP: Input Form ---
-        JPanel formPanel = new JPanel(new GridLayout(4, 2, 5, 5));
+        JPanel formPanel = new JPanel(new GridLayout(5, 2, 5, 5)); 
         
         formPanel.add(new JLabel("License Plate:"));
         txtPlate = new JTextField();
@@ -36,6 +39,21 @@ public class EntryPanel extends JPanel {
         chkVip = new JCheckBox("Is VIP Holder?");
         formPanel.add(chkVip);
 
+        formPanel.add(new JLabel("Handicapped Card:"));
+        chkHandicappedCard = new JCheckBox("Has Physical Card?");
+        chkHandicappedCard.setEnabled(false); 
+        formPanel.add(chkHandicappedCard);
+
+        cmbType.addActionListener(e -> {
+            String selected = (String) cmbType.getSelectedItem();
+            if ("Handicapped Vehicle".equals(selected)) {
+                chkHandicappedCard.setEnabled(true);
+            } else {
+                chkHandicappedCard.setSelected(false);
+                chkHandicappedCard.setEnabled(false);
+            }
+        });
+
         JButton btnFind = new JButton("Find Available Spots");
         btnFind.addActionListener(e -> findSpots());
         formPanel.add(btnFind);
@@ -45,7 +63,7 @@ public class EntryPanel extends JPanel {
         // --- CENTER: Spot Selection Table ---
         String[] columns = {"Spot ID", "Floor", "Type", "Rate (RM/hr)"};
         tableModel = new DefaultTableModel(columns, 0) {
-            @Override // Make table read-only
+            @Override
             public boolean isCellEditable(int row, int column) { return false; }
         };
         spotTable = new JTable(tableModel);
@@ -63,6 +81,7 @@ public class EntryPanel extends JPanel {
     private void findSpots() {
         String type = (String) cmbType.getSelectedItem();
         boolean isVip = chkVip.isSelected();
+        boolean hasCard = chkHandicappedCard.isSelected();
         String plate = txtPlate.getText().trim();
         
         if (plate.isEmpty()) {
@@ -70,10 +89,8 @@ public class EntryPanel extends JPanel {
             return;
         }
 
-        // Create a temporary vehicle just to check what fits (Physical check)
-        Vehicle tempVehicle = new Vehicle(plate, type, isVip);
-
-        tableModel.setRowCount(0); // Clear table
+        Vehicle tempVehicle = new Vehicle(plate, type, isVip, hasCard);
+        tableModel.setRowCount(0); 
 
         String sql = "SELECT * FROM parking_spots WHERE current_vehicle_plate IS NULL";
         
@@ -84,7 +101,6 @@ public class EntryPanel extends JPanel {
             while (rs.next()) {
                 String spotType = rs.getString("spot_type");
                 
-                // Use our new "canFitInSpot" logic
                 if (tempVehicle.canFitInSpot(spotType)) {
                     Vector<Object> row = new Vector<>();
                     row.add(rs.getString("spot_id"));
@@ -94,7 +110,6 @@ public class EntryPanel extends JPanel {
                     tableModel.addRow(row);
                 }
             }
-
         } catch (SQLException ex) {
             ex.printStackTrace();
             JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage());
@@ -112,14 +127,15 @@ public class EntryPanel extends JPanel {
         String plate = txtPlate.getText().trim().toUpperCase();
         String type = (String) cmbType.getSelectedItem();
         boolean isVip = chkVip.isSelected();
+        boolean hasCard = chkHandicappedCard.isSelected(); 
         long entryTime = System.currentTimeMillis();
 
-        String sqlVehicle = "INSERT OR REPLACE INTO vehicles (license_plate, vehicle_type, is_vip) VALUES (?, ?, ?)";
+        String sqlVehicle = "INSERT OR REPLACE INTO vehicles (license_plate, vehicle_type, is_vip, has_handicapped_card) VALUES (?, ?, ?, ?)";
         String sqlSpot = "UPDATE parking_spots SET current_vehicle_plate = ? WHERE spot_id = ?";
         String sqlTicket = "INSERT INTO tickets (ticket_id, license_plate, spot_id, entry_time_millis) VALUES (?, ?, ?, ?)";
 
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db")) {
-            conn.setAutoCommit(false); // Start Transaction
+            conn.setAutoCommit(false); 
 
             try (PreparedStatement pstmtV = conn.prepareStatement(sqlVehicle);
                  PreparedStatement pstmtS = conn.prepareStatement(sqlSpot);
@@ -129,6 +145,7 @@ public class EntryPanel extends JPanel {
                 pstmtV.setString(1, plate);
                 pstmtV.setString(2, type);
                 pstmtV.setInt(3, isVip ? 1 : 0);
+                pstmtV.setInt(4, hasCard ? 1 : 0); 
                 pstmtV.executeUpdate();
 
                 // 2. Update Spot
@@ -136,34 +153,40 @@ public class EntryPanel extends JPanel {
                 pstmtS.setString(2, spotID);
                 pstmtS.executeUpdate();
 
-                // 3. Generate Ticket
-                String ticketID = "T-" + plate + "-" + (entryTime / 1000); // Simple ID
+                // 3. Generate Ticket (UPDATED FOR MALAYSIA TIME)
+                // ---------------------------------------------------------
+                // Create a formatter for "DayMonthYear-HourMinuteSecond"
+                SimpleDateFormat sdf = new SimpleDateFormat("ddMMyyyy-HHmmss");
+                
+                // FORCE it to use Malaysia Time (Asia/Kuala_Lumpur)
+                sdf.setTimeZone(TimeZone.getTimeZone("Asia/Kuala_Lumpur"));
+                
+                String myTime = sdf.format(new Date(entryTime)); // e.g., 09022026-143000
+                
+                String ticketID = "T-" + plate + "-" + myTime; 
+                // ---------------------------------------------------------
+
                 pstmtT.setString(1, ticketID);
                 pstmtT.setString(2, plate);
                 pstmtT.setString(3, spotID);
                 pstmtT.setLong(4, entryTime);
                 pstmtT.executeUpdate();
 
-                conn.commit(); // Save all changes
+                conn.commit(); 
 
-                JOptionPane.showMessageDialog(this, 
-                    "Vehicle Parked Successfully!\n\n" +
-                    "Ticket ID: " + ticketID + "\n" +
-                    "Spot: " + spotID + "\n" +
-                    "Time: " + new java.util.Date(entryTime));
-
-                // Clear form
+                JOptionPane.showMessageDialog(this, "Vehicle Parked!\nTicket: " + ticketID);
                 txtPlate.setText("");
                 tableModel.setRowCount(0);
+                chkHandicappedCard.setSelected(false);
+                chkHandicappedCard.setEnabled(false);
 
             } catch (SQLException e) {
-                conn.rollback(); // Undo if error
+                conn.rollback(); 
                 throw e;
             }
-
         } catch (SQLException ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error parking vehicle: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
         }
     }
 }

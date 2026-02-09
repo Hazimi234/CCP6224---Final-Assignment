@@ -46,13 +46,4 @@ public class MainApp extends JFrame {
         add(tabbedPane);
         setVisible(true);
     }
-
-    public static void main(String[] args) {
-        // Use the standard Swing look and feel
-        try { 
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); 
-        } catch (Exception ignored) {}
-
-        SwingUtilities.invokeLater(() -> new MainApp());
-    }
 }
