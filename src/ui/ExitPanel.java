@@ -99,50 +99,62 @@ public class ExitPanel extends JPanel {
                 double hours = Math.ceil(durationMillis / (1000.0 * 60 * 60)); 
                 if (hours == 0) hours = 1; 
 
+                // --- 1. Parking Fee Calculation ---
                 SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
                 sdf.setTimeZone(TimeZone.getTimeZone("Asia/Kuala_Lumpur"));
                 String readableEntryTime = sdf.format(new Date(entryTime));
 
-                // Logic: Handicapped Discounts
                 double finalRate = rate;
                 String discountMsg = "";
-
                 if (vType.equals("Handicapped Vehicle") && hasCard) {
                     if (spotType.equals("Compact") || spotType.equals("Handicapped")) {
-                        finalRate = 0.0; 
-                        discountMsg = " (Handicapped Card: FREE)";
+                        finalRate = 0.0; discountMsg = " (Free)";
                     } else if (spotType.equals("Regular")) {
-                        finalRate = 3.0; 
-                        discountMsg = " (Handicapped Card: Discounted)";
+                        finalRate = 3.0; discountMsg = " (Discount)";
                     }
                 }
-
                 double parkingFee = hours * finalRate;
+
                 StringBuilder bill = new StringBuilder();
                 bill.append("Ticket ID:  ").append(currentTicketID).append("\n");
                 bill.append("Plate No:   ").append(plate).append("\n");
                 bill.append("Entry Time: ").append(readableEntryTime).append("\n");
-                bill.append("Spot:       ").append(currentSpotID).append(" (").append(spotType).append(")\n");
                 bill.append("Duration:   ").append((int)hours).append(" hours\n");
                 bill.append("Rate:       RM ").append(rate).append("/hr").append(discountMsg).append("\n");
-                bill.append("Fee:        RM ").append(String.format("%.2f", parkingFee)).append("\n");
+                bill.append("Parking Fee: RM ").append(String.format("%.2f", parkingFee)).append("\n");
                 bill.append("----------------------------------\n");
 
                 double subTotal = parkingFee;
 
-                // Violation Check
+                // --- 2. THE FIX: Overstay Fine Calculation ---
+                // We ask the AdminPanel what the current rule is (A, B, or C)
+                if (hours > 24) {
+                    double overstayFine = AdminPanel.currentFineStrategy.calculateFine(hours);
+                    
+                    if (overstayFine > 0) {
+                        bill.append("OVERSTAY ALERT (>24 Hours)\n");
+                        bill.append("Scheme: ").append(AdminPanel.currentFineStrategy.getName()).append("\n");
+                        bill.append("Fine:   RM ").append(String.format("%.2f", overstayFine)).append("\n");
+                        
+                        // Add to DB immediately
+                        addInstantFine(plate, overstayFine, "Overstay Fine (" + (int)hours + "h)");
+                        subTotal += overstayFine;
+                    }
+                }
+
+                // --- 3. Violation Fine (Reserved Spot Trap) ---
                 if (spotType.equals("Reserved") && !isVip) {
                     double violationFine = 50.0;
                     bill.append("VIOLATION: Non-VIP in Reserved Spot!\n");
-                    bill.append("Fine Added: RM ").append(violationFine).append("\n");
+                    bill.append("Fine:   RM ").append(String.format("%.2f", violationFine)).append("\n");
                     addInstantFine(plate, violationFine, "Misuse of Reserved Spot");
                     subTotal += violationFine;
                 }
 
-                // Previous Fines Check
+                // --- 4. Previous Unpaid Fines ---
                 double oldFines = checkUnpaidFines(plate);
                 if (oldFines > 0) {
-                    bill.append("Previous Unpaid Fines: RM ").append(String.format("%.2f", oldFines)).append("\n");
+                    bill.append("Unpaid Fines: RM ").append(String.format("%.2f", oldFines)).append("\n");
                     subTotal += oldFines;
                 }
 
@@ -152,7 +164,7 @@ public class ExitPanel extends JPanel {
                 txtBillArea.setText(bill.toString());
                 totalAmountDue = subTotal;
                 btnPay.setEnabled(true);
-                cmbPaymentMethod.setEnabled(true); 
+                cmbPaymentMethod.setEnabled(true);
 
             } else {
                 JOptionPane.showMessageDialog(this, "Vehicle not found or already exited.");

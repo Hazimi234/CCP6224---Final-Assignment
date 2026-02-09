@@ -1,13 +1,14 @@
 package src.ui;
 
 import javax.swing.*;
-import src.util.DatabaseSetup; // Import your setup tool
+import java.awt.*; // <--- This fixes the "Component cannot be resolved" error
+import src.util.DatabaseSetup;
 
 public class MainApp extends JFrame {
 
     public MainApp() {
         setTitle("University Parking Management System (Group Project)");
-        setSize(1000, 700);
+        setSize(1100, 750); // Made it slightly bigger to fit everything nicely
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null); // Center on screen
 
@@ -25,20 +26,23 @@ public class MainApp extends JFrame {
         OverviewPanel overviewPanel = new OverviewPanel();
         tabbedPane.addTab("Parking Map (Live)", null, overviewPanel, "View all spots");
 
-        // Tab 3: Member B's Exit Panel 
+        // Tab 3: Member B's Exit Panel
         ExitPanel exitPanel = new ExitPanel();
         tabbedPane.addTab("Vehicle Exit & Payment", null, exitPanel, "Process payments");
 
-        // Tab 4: Member C's Admin Panel (Placeholder for now)
-        JPanel adminPlaceholder = new JPanel();
-        adminPlaceholder.add(new JLabel("Member C will build the Admin/Reports Screen here next."));
-        tabbedPane.addTab("Admin & Reports", null, adminPlaceholder, "View revenue and fines");
+        // Tab 4: Member C's Admin Panel
+        AdminPanel adminPanel = new AdminPanel();
+        tabbedPane.addTab("Admin & Reports", null, adminPanel, "View revenue and fines");
 
         // --- THE MAGIC GLUE ---
-        // This makes the map refresh automatically when you click the tab!
+        // This makes the screens refresh automatically when you click the tabs!
         tabbedPane.addChangeListener(e -> {
-            if (tabbedPane.getSelectedComponent() == overviewPanel) {
-                overviewPanel.loadParkingSpots();
+            Component selected = tabbedPane.getSelectedComponent();
+            
+            if (selected == overviewPanel) {
+                overviewPanel.loadParkingSpots(); // Refresh Map
+            } else if (selected == adminPanel) {
+                adminPanel.refreshData(); // Refresh Admin Stats
             }
         });
 
