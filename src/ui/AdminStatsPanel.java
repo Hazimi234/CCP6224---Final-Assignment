@@ -128,6 +128,7 @@ public class AdminStatsPanel extends JPanel {
     }
 
     public void refreshData() {
+        runComplianceScan(); // <--- NEW: Calculate and save fines on load/refresh
         updateRevenue();
         updateVehicleList();
     }
@@ -148,49 +149,96 @@ public class AdminStatsPanel extends JPanel {
         tableModel.setRowCount(0); 
         int occupiedCount = 0;
         
-        // Updated SQL: Fetch entry time and spot type to calculate live fines
-        String sql = "SELECT s.spot_id, s.current_vehicle_plate, s.spot_type, v.vehicle_type, v.is_vip, t.entry_time_millis, " +
+        // Updated SQL: Fetch only DB fines, no live calculation needed
+        String sql = "SELECT s.spot_id, s.current_vehicle_plate, v.vehicle_type, v.is_vip, " +
                      "(SELECT IFNULL(SUM(amount), 0) FROM fines f WHERE f.license_plate = s.current_vehicle_plate AND f.is_paid = 0) as db_fines " +
                      "FROM parking_spots s " +
                      "JOIN vehicles v ON s.current_vehicle_plate = v.license_plate " +
-                     "JOIN tickets t ON s.current_vehicle_plate = t.license_plate " +
-                     "WHERE s.current_vehicle_plate IS NOT NULL AND t.exit_time_millis IS NULL " +
+                     "WHERE s.current_vehicle_plate IS NOT NULL " +
                      "ORDER BY s.spot_id";
 
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             
-            long now = System.currentTimeMillis();
-
             while (rs.next()) {
                 occupiedCount++;
                 String spot = rs.getString("spot_id");
                 String plate = rs.getString("current_vehicle_plate");
-                String spotType = rs.getString("spot_type");
                 String type = rs.getString("vehicle_type");
                 boolean vip = rs.getInt("is_vip") == 1;
                 double dbFines = rs.getDouble("db_fines");
-                long entryTime = rs.getLong("entry_time_millis");
 
-                // 1. Calculate Live Overstay Fine (if > 24 hours)
-                double hours = Math.ceil((now - entryTime) / (1000.0 * 60 * 60));
-                double overstayFine = 0.0;
-                if (hours > 24 && currentFineStrategy != null) {
-                    overstayFine = currentFineStrategy.calculateFine(hours);
-                }
-
-                // 2. Calculate Live Violation Fine (Non-VIP in Reserved)
-                double violationFine = 0.0;
-                if ("Reserved".equalsIgnoreCase(spotType) && !vip) {
-                    violationFine = 50.0;
-                }
-
-                double totalUnpaid = dbFines + overstayFine + violationFine;
-
-                tableModel.addRow(new Object[]{spot, plate, type, vip ? "YES" : "NO", "Parked", String.format("RM %.2f", totalUnpaid)});
+                tableModel.addRow(new Object[]{spot, plate, type, vip ? "YES" : "NO", "Parked", String.format("RM %.2f", dbFines)});
             }
             lblOccupancy.setText("Occupancy: " + occupiedCount + " / 50");
+        } catch (SQLException e) { e.printStackTrace(); }
+    }
+
+    // --- NEW: Scan for violations and save to DB ---
+    private void runComplianceScan() {
+        String sql = "SELECT s.spot_type, s.current_vehicle_plate, v.is_vip, t.entry_time_millis " +
+                     "FROM parking_spots s " +
+                     "JOIN vehicles v ON s.current_vehicle_plate = v.license_plate " +
+                     "JOIN tickets t ON s.current_vehicle_plate = t.license_plate " +
+                     "WHERE s.current_vehicle_plate IS NOT NULL AND t.exit_time_millis IS NULL";
+        
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            long now = System.currentTimeMillis();
+            
+            while (rs.next()) {
+                String plate = rs.getString("current_vehicle_plate");
+                String spotType = rs.getString("spot_type");
+                boolean isVip = rs.getInt("is_vip") == 1;
+                long entryTime = rs.getLong("entry_time_millis");
+                
+                // 1. Violation: Non-VIP in Reserved
+                if ("Reserved".equalsIgnoreCase(spotType) && !isVip) {
+                    updateOrInsertFine(conn, plate, 50.0, "Misuse of Reserved Spot");
+                }
+                
+                // 2. Overstay: > 24 Hours
+                double hours = Math.ceil((now - entryTime) / (1000.0 * 60 * 60));
+                if (hours > 24 && currentFineStrategy != null) {
+                    double fine = currentFineStrategy.calculateFine(hours);
+                    if (fine > 0) {
+                        updateOrInsertFine(conn, plate, fine, "Overstay Fine");
+                    }
+                }
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+    }
+
+    // --- FIX: Update amount if fine increases, or Insert if new ---
+    private void updateOrInsertFine(Connection conn, String plate, double amount, String reasonPrefix) {
+        // Check if a fine with this reason (e.g., "Overstay Fine%") already exists and is unpaid
+        String checkSql = "SELECT fine_id, amount FROM fines WHERE license_plate = ? AND is_paid = 0 AND reason LIKE ?";
+        try (PreparedStatement pstmt = conn.prepareStatement(checkSql)) {
+            pstmt.setString(1, plate);
+            pstmt.setString(2, reasonPrefix + "%");
+            ResultSet rs = pstmt.executeQuery();
+            
+            if (rs.next()) {
+                // Fine exists. Always update to match current calculation.
+                try (PreparedStatement updateStmt = conn.prepareStatement("UPDATE fines SET amount = ? WHERE fine_id = ?")) {
+                    updateStmt.setDouble(1, amount);
+                    updateStmt.setInt(2, rs.getInt("fine_id"));
+                    updateStmt.executeUpdate();
+                }
+                return; 
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+
+        // Insert if not exists
+        String insertSql = "INSERT INTO fines (license_plate, amount, reason, is_paid) VALUES (?, ?, ?, 0)";
+        try (PreparedStatement pstmt = conn.prepareStatement(insertSql)) {
+            pstmt.setString(1, plate);
+            pstmt.setDouble(2, amount);
+            pstmt.setString(3, reasonPrefix); // e.g., "Overstay Fine"
+            pstmt.executeUpdate();
         } catch (SQLException e) { e.printStackTrace(); }
     }
 }
