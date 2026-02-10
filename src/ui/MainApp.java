@@ -30,6 +30,10 @@ public class MainApp extends JFrame {
         AdminPanel adminPanel = new AdminPanel();
         tabbedPane.addTab("Admin Panel", null, adminPanel, "View revenue, fines, and map");
 
+        // Tab 4: Reports Panel
+        ReportPanel reportPanel = new ReportPanel();
+        tabbedPane.addTab("Reports", null, reportPanel, "Detailed statistics and logs");
+
         // --- THE MAGIC GLUE ---
         // This makes the screens refresh automatically when you click the tabs!
         tabbedPane.addChangeListener(e -> {

@@ -188,6 +188,16 @@ public class ExitPanel extends JPanel {
     }
 
     private void addInstantFine(String plate, double amount, String reason) {
+        // --- FIX: Check if fine already exists to prevent duplicates ---
+        String checkSql = "SELECT count(*) FROM fines WHERE license_plate = ? AND is_paid = 0 AND reason LIKE ?";
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
+             PreparedStatement pstmt = conn.prepareStatement(checkSql)) {
+            pstmt.setString(1, plate);
+            pstmt.setString(2, reason.split("\\(")[0].trim() + "%"); // Match "Overstay Fine%" ignoring details
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next() && rs.getInt(1) > 0) return; 
+        } catch (SQLException e) { e.printStackTrace(); }
+
         String sql = "INSERT INTO fines (license_plate, amount, reason, is_paid) VALUES (?, ?, ?, 0)";
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -203,9 +213,9 @@ public class ExitPanel extends JPanel {
         long exitTime = System.currentTimeMillis();
         String method = (String) cmbPaymentMethod.getSelectedItem(); 
 
-        String sqlUpdateTicket = "UPDATE tickets SET exit_time_millis = ?, parking_fee = ?, is_paid = 1 WHERE ticket_id = ?";
+        String sqlUpdateTicket = "UPDATE tickets SET exit_time_millis = ?, parking_fee = ?, is_paid = 1, payment_method = ? WHERE ticket_id = ?";
         String sqlClearSpot = "UPDATE parking_spots SET current_vehicle_plate = NULL WHERE spot_id = ?";
-        String sqlPayFines = "UPDATE fines SET is_paid = 1 WHERE license_plate = ? AND is_paid = 0";
+        String sqlPayFines = "UPDATE fines SET is_paid = 1, payment_method = ? WHERE license_plate = ? AND is_paid = 0";
 
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db")) {
             conn.setAutoCommit(false);
@@ -216,13 +226,15 @@ public class ExitPanel extends JPanel {
 
                 pstT.setLong(1, exitTime);
                 pstT.setDouble(2, totalAmountDue);
-                pstT.setString(3, currentTicketID);
+                pstT.setString(3, method);
+                pstT.setString(4, currentTicketID);
                 pstT.executeUpdate();
 
                 pstS.setString(1, currentSpotID);
                 pstS.executeUpdate();
 
-                pstF.setString(1, plate);
+                pstF.setString(1, method);
+                pstF.setString(2, plate);
                 pstF.executeUpdate();
 
                 conn.commit();

@@ -2,8 +2,8 @@ package src.util;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.Statement;
 import java.sql.ResultSet;
+import java.sql.Statement;
 
 public class DatabaseSetup {
     private static final String URL = "jdbc:sqlite:parking_lot.db";
@@ -37,6 +37,7 @@ public class DatabaseSetup {
                 + " exit_time_millis INTEGER,\n"
                 + " parking_fee REAL DEFAULT 0.0,\n"
                 + " is_paid INTEGER DEFAULT 0,\n"
+                + " payment_method TEXT,\n"
                 + " FOREIGN KEY (license_plate) REFERENCES vehicles(license_plate),\n"
                 + " FOREIGN KEY (spot_id) REFERENCES parking_spots(spot_id)\n"
                 + ");";
@@ -47,6 +48,7 @@ public class DatabaseSetup {
                 + " amount REAL,\n"
                 + " reason TEXT,\n"
                 + " is_paid INTEGER DEFAULT 0,\n"
+                + " payment_method TEXT,\n"
                 + " FOREIGN KEY (license_plate) REFERENCES vehicles(license_plate)\n"
                 + ");";
 
@@ -65,6 +67,14 @@ public class DatabaseSetup {
             stmt.execute(sqlFines);
             stmt.execute(sqlSettings);
             
+            // --- MIGRATION: Add payment_method column if it doesn't exist (for existing DBs) ---
+            try {
+                stmt.execute("ALTER TABLE tickets ADD COLUMN payment_method TEXT");
+                stmt.execute("ALTER TABLE fines ADD COLUMN payment_method TEXT");
+            } catch (Exception e) {
+                // Ignore error if columns already exist
+            }
+
             // Check if we need to initialize spots (First Run Logic)
             ResultSet rs = stmt.executeQuery("SELECT count(*) FROM parking_spots");
             if (rs.next() && rs.getInt(1) == 0) {
