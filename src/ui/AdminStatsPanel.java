@@ -40,7 +40,7 @@ public class AdminStatsPanel extends JPanel {
         add(statsPanel, BorderLayout.NORTH);
 
         // --- CENTER: Live Vehicle Table ---
-        String[] columns = {"Spot ID", "License Plate", "Vehicle Type", "Is VIP", "Status"};
+        String[] columns = {"Spot ID", "License Plate", "Vehicle Type", "Is VIP", "Status", "Unpaid Fines"};
         tableModel = new DefaultTableModel(columns, 0);
         vehicleTable = new JTable(tableModel);
         add(new JScrollPane(vehicleTable), BorderLayout.CENTER);
@@ -147,17 +147,48 @@ public class AdminStatsPanel extends JPanel {
     private void updateVehicleList() {
         tableModel.setRowCount(0); 
         int occupiedCount = 0;
-        String sql = "SELECT s.spot_id, s.current_vehicle_plate, v.vehicle_type, v.is_vip FROM parking_spots s JOIN vehicles v ON s.current_vehicle_plate = v.license_plate WHERE s.current_vehicle_plate IS NOT NULL ORDER BY s.spot_id";
+        
+        // Updated SQL: Fetch entry time and spot type to calculate live fines
+        String sql = "SELECT s.spot_id, s.current_vehicle_plate, s.spot_type, v.vehicle_type, v.is_vip, t.entry_time_millis, " +
+                     "(SELECT IFNULL(SUM(amount), 0) FROM fines f WHERE f.license_plate = s.current_vehicle_plate AND f.is_paid = 0) as db_fines " +
+                     "FROM parking_spots s " +
+                     "JOIN vehicles v ON s.current_vehicle_plate = v.license_plate " +
+                     "JOIN tickets t ON s.current_vehicle_plate = t.license_plate " +
+                     "WHERE s.current_vehicle_plate IS NOT NULL AND t.exit_time_millis IS NULL " +
+                     "ORDER BY s.spot_id";
+
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
+            
+            long now = System.currentTimeMillis();
+
             while (rs.next()) {
                 occupiedCount++;
                 String spot = rs.getString("spot_id");
                 String plate = rs.getString("current_vehicle_plate");
+                String spotType = rs.getString("spot_type");
                 String type = rs.getString("vehicle_type");
                 boolean vip = rs.getInt("is_vip") == 1;
-                tableModel.addRow(new Object[]{spot, plate, type, vip ? "YES" : "NO", "Parked"});
+                double dbFines = rs.getDouble("db_fines");
+                long entryTime = rs.getLong("entry_time_millis");
+
+                // 1. Calculate Live Overstay Fine (if > 24 hours)
+                double hours = Math.ceil((now - entryTime) / (1000.0 * 60 * 60));
+                double overstayFine = 0.0;
+                if (hours > 24 && currentFineStrategy != null) {
+                    overstayFine = currentFineStrategy.calculateFine(hours);
+                }
+
+                // 2. Calculate Live Violation Fine (Non-VIP in Reserved)
+                double violationFine = 0.0;
+                if ("Reserved".equalsIgnoreCase(spotType) && !vip) {
+                    violationFine = 50.0;
+                }
+
+                double totalUnpaid = dbFines + overstayFine + violationFine;
+
+                tableModel.addRow(new Object[]{spot, plate, type, vip ? "YES" : "NO", "Parked", String.format("RM %.2f", totalUnpaid)});
             }
             lblOccupancy.setText("Occupancy: " + occupiedCount + " / 50");
         } catch (SQLException e) { e.printStackTrace(); }

@@ -19,10 +19,10 @@ public class AdminPanel extends JPanel {
         innerTabs = new JTabbedPane(JTabbedPane.TOP);
         
         // Tab A: The Stats/Reports
-        innerTabs.addTab("Management & Reports", null, statsPanel, "Manage fines and view revenue");
+        innerTabs.addTab("Overview", null, statsPanel, "Manage fines and view revenue");
         
         // Tab B: The Parking Map
-        innerTabs.addTab("Live Parking Map", null, overviewPanel, "View real-time parking status");
+        innerTabs.addTab("Parking Map", null, overviewPanel, "View real-time parking status");
 
         add(innerTabs, BorderLayout.CENTER);
 
