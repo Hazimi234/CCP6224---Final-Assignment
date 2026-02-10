@@ -41,6 +41,8 @@ public class MainApp extends JFrame {
             
             if (selected == adminPanel) {
                 adminPanel.refreshCurrentView(); // Refresh whatever is currently showing in Admin
+            } else if (selected == reportPanel) {
+                reportPanel.refreshCurrentTab(); // Refresh the active report tab
             }
         });
 

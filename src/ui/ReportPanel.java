@@ -7,6 +7,7 @@ import javax.swing.table.DefaultTableModel;
 
 public class ReportPanel extends JPanel {
     private JTabbedPane tabs;
+    private Runnable[] refreshTasks = new Runnable[4];
 
     public ReportPanel() {
         setLayout(new BorderLayout());
@@ -20,10 +21,14 @@ public class ReportPanel extends JPanel {
         add(tabs, BorderLayout.CENTER);
 
         // Refresh data when tab is switched
-        tabs.addChangeListener(e -> {
-            // In a real app, we would call specific refresh methods here
-            // For simplicity, we re-create the selected panel or just let the user click refresh buttons
-        });
+        tabs.addChangeListener(e -> refreshCurrentTab());
+    }
+
+    public void refreshCurrentTab() {
+        int index = tabs.getSelectedIndex();
+        if (index >= 0 && index < refreshTasks.length && refreshTasks[index] != null) {
+            refreshTasks[index].run();
+        }
     }
 
     // --- 1. Current Parked Vehicles ---
@@ -34,7 +39,7 @@ public class ReportPanel extends JPanel {
         JTable table = new JTable(model);
         
         JButton btnRefresh = new JButton("Refresh List");
-        btnRefresh.addActionListener(e -> {
+        Runnable refreshAction = () -> {
             model.setRowCount(0);
             String sql = "SELECT s.spot_id, s.current_vehicle_plate, v.vehicle_type, t.entry_time_millis " +
                          "FROM parking_spots s " +
@@ -53,7 +58,10 @@ public class ReportPanel extends JPanel {
                     });
                 }
             } catch (SQLException ex) { ex.printStackTrace(); }
-        });
+        };
+
+        refreshTasks[0] = refreshAction;
+        btnRefresh.addActionListener(e -> refreshAction.run());
 
         panel.add(new JScrollPane(table), BorderLayout.CENTER);
         panel.add(btnRefresh, BorderLayout.SOUTH);
@@ -84,7 +92,7 @@ public class ReportPanel extends JPanel {
         lblTotal.setFont(new Font("Arial", Font.BOLD, 14));
         panel.add(lblTotal, BorderLayout.SOUTH);
 
-        btnLoad.addActionListener(e -> {
+        Runnable refreshAction = () -> {
             model.setRowCount(0);
             double total = 0;
             String typeFilter = (String) cmbType.getSelectedItem();
@@ -126,7 +134,10 @@ public class ReportPanel extends JPanel {
                 } catch (SQLException ex) { ex.printStackTrace(); }
             }
             lblTotal.setText("Total Revenue: RM " + String.format("%.2f", total));
-        });
+        };
+
+        refreshTasks[1] = refreshAction;
+        btnLoad.addActionListener(e -> refreshAction.run());
 
         return panel;
     }
@@ -157,7 +168,7 @@ public class ReportPanel extends JPanel {
         JButton btnRefresh = new JButton("Refresh Statistics");
         panel.add(btnRefresh, BorderLayout.SOUTH);
 
-        btnRefresh.addActionListener(e -> {
+        Runnable refreshAction = () -> {
             typeModel.setRowCount(0);
             floorModel.setRowCount(0);
 
@@ -183,7 +194,10 @@ public class ReportPanel extends JPanel {
                 }
 
             } catch (SQLException ex) { ex.printStackTrace(); }
-        });
+        };
+
+        refreshTasks[2] = refreshAction;
+        btnRefresh.addActionListener(e -> refreshAction.run());
 
         return panel;
     }
@@ -196,7 +210,7 @@ public class ReportPanel extends JPanel {
         JTable table = new JTable(model);
         
         JButton btnRefresh = new JButton("Load Unpaid Fines");
-        btnRefresh.addActionListener(e -> {
+        Runnable refreshAction = () -> {
             model.setRowCount(0);
             String sql = "SELECT license_plate, amount, reason FROM fines WHERE is_paid = 0";
             try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
@@ -210,7 +224,10 @@ public class ReportPanel extends JPanel {
                     });
                 }
             } catch (SQLException ex) { ex.printStackTrace(); }
-        });
+        };
+
+        refreshTasks[3] = refreshAction;
+        btnRefresh.addActionListener(e -> refreshAction.run());
 
         panel.add(new JScrollPane(table), BorderLayout.CENTER);
         panel.add(btnRefresh, BorderLayout.SOUTH);
