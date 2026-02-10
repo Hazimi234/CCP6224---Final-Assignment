@@ -1,11 +1,11 @@
 package src.ui;
 
-import javax.swing.*;
 import java.awt.*;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
+import javax.swing.*;
 
 public class ExitPanel extends JPanel {
     private JTextField txtPlateSearch;
@@ -129,11 +129,11 @@ public class ExitPanel extends JPanel {
                 // --- 2. THE FIX: Overstay Fine Calculation ---
                 // We ask the AdminPanel what the current rule is (A, B, or C)
                 if (hours > 24) {
-                    double overstayFine = AdminPanel.currentFineStrategy.calculateFine(hours);
+                    double overstayFine = AdminStatsPanel.currentFineStrategy.calculateFine(hours);
                     
                     if (overstayFine > 0) {
                         bill.append("OVERSTAY ALERT (>24 Hours)\n");
-                        bill.append("Scheme: ").append(AdminPanel.currentFineStrategy.getName()).append("\n");
+                        bill.append("Scheme: ").append(AdminStatsPanel.currentFineStrategy.getName()).append("\n");
                         bill.append("Fine:   RM ").append(String.format("%.2f", overstayFine)).append("\n");
                         
                         // Add to DB immediately

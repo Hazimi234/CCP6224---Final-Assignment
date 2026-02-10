@@ -1,7 +1,7 @@
 package src.ui;
 
-import javax.swing.*;
-import java.awt.*; // <--- This fixes the "Component cannot be resolved" error
+import java.awt.*;
+import javax.swing.*; // <--- This fixes the "Component cannot be resolved" error
 import src.util.DatabaseSetup;
 
 public class MainApp extends JFrame {
@@ -22,27 +22,21 @@ public class MainApp extends JFrame {
         EntryPanel entryPanel = new EntryPanel();
         tabbedPane.addTab("Vehicle Entry", null, entryPanel, "Park a new vehicle");
 
-        // Tab 2: Member A's Overview Map
-        OverviewPanel overviewPanel = new OverviewPanel();
-        tabbedPane.addTab("Parking Map (Live)", null, overviewPanel, "View all spots");
-
-        // Tab 3: Member B's Exit Panel
+        // Tab 2: Member B's Exit Panel
         ExitPanel exitPanel = new ExitPanel();
         tabbedPane.addTab("Vehicle Exit & Payment", null, exitPanel, "Process payments");
 
-        // Tab 4: Member C's Admin Panel
+        // Tab 3: Member C's Admin Panel
         AdminPanel adminPanel = new AdminPanel();
-        tabbedPane.addTab("Admin & Reports", null, adminPanel, "View revenue and fines");
+        tabbedPane.addTab("Admin Panel", null, adminPanel, "View revenue, fines, and map");
 
         // --- THE MAGIC GLUE ---
         // This makes the screens refresh automatically when you click the tabs!
         tabbedPane.addChangeListener(e -> {
             Component selected = tabbedPane.getSelectedComponent();
             
-            if (selected == overviewPanel) {
-                overviewPanel.loadParkingSpots(); // Refresh Map
-            } else if (selected == adminPanel) {
-                adminPanel.refreshData(); // Refresh Admin Stats
+            if (selected == adminPanel) {
+                adminPanel.refreshCurrentView(); // Refresh whatever is currently showing in Admin
             }
         });
 
