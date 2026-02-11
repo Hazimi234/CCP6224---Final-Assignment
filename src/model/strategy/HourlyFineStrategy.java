@@ -3,8 +3,9 @@ package src.model.strategy;
 public class HourlyFineStrategy implements FineStrategy {
     @Override
     public double calculateFine(double hoursOverstayed) {
-        if (hoursOverstayed <= 0) return 0;
-        return hoursOverstayed * 20.0; // RM 20 per hour
+        double billableHours = hoursOverstayed - 24;
+        if (billableHours <= 0) return 0;
+        return billableHours * 20.0; // RM 20 per hour
     }
 
     @Override
