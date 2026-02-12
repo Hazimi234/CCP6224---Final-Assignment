@@ -1,13 +1,13 @@
 package src.ui;
 
-import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.TimeZone;
 import java.util.Vector;
-import java.text.SimpleDateFormat; 
-import java.util.Date;            
-import java.util.TimeZone;        
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;        
 import src.model.Vehicle; 
 
 public class EntryPanel extends JPanel {
@@ -24,7 +24,8 @@ public class EntryPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // --- TOP: Input Form ---
-        JPanel formPanel = new JPanel(new GridLayout(5, 2, 5, 5)); 
+        JPanel topContainer = new JPanel(new BorderLayout());
+        JPanel formPanel = new JPanel(new GridLayout(4, 2, 5, 5)); 
         
         formPanel.add(new JLabel("License Plate:"));
         txtPlate = new JTextField();
@@ -55,10 +56,14 @@ public class EntryPanel extends JPanel {
         });
 
         JButton btnFind = new JButton("Find Available Spots");
+        btnFind.setPreferredSize(new Dimension(250, 35));
         btnFind.addActionListener(e -> findSpots());
-        formPanel.add(btnFind);
         
-        add(formPanel, BorderLayout.NORTH);
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        btnPanel.add(btnFind);
+        topContainer.add(formPanel, BorderLayout.CENTER);
+        topContainer.add(btnPanel, BorderLayout.SOUTH);
+        add(topContainer, BorderLayout.NORTH);
 
         // --- CENTER: Spot Selection Table ---
         String[] columns = {"Spot ID", "Floor", "Type", "Rate (RM/hr)"};

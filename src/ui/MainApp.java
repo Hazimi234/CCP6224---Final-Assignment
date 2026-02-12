@@ -8,7 +8,7 @@ public class MainApp extends JFrame {
 
     public MainApp() {
         setTitle("University Parking Management System (Group Project)");
-        setSize(1100, 750); // Made it slightly bigger to fit everything nicely
+        setSize(900, 600); // Made it slightly bigger to fit everything nicely
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null); // Center on screen
 
