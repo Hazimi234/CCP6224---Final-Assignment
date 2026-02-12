@@ -8,7 +8,7 @@ import java.util.TimeZone;
 import java.util.Vector;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;        
-import src.model.Vehicle; 
+import src.model.*; 
 
 public class EntryPanel extends JPanel {
     private JTextField txtPlate;
@@ -102,7 +102,15 @@ public class EntryPanel extends JPanel {
         boolean isVip = chkVip.isSelected();
         boolean hasCard = chkHandicappedCard.isSelected();
         
-        Vehicle tempVehicle = new Vehicle(plate, type, isVip, hasCard);
+        Vehicle tempVehicle;
+        switch (type) {
+            case "Car": tempVehicle = new Car(plate, isVip, hasCard); break;
+            case "Motorcycle": tempVehicle = new Motorcycle(plate, isVip, hasCard); break;
+            case "SUV": tempVehicle = new SUV(plate, isVip, hasCard); break;
+            case "Handicapped Vehicle": tempVehicle = new HandicappedVehicle(plate, isVip, hasCard); break;
+            default: tempVehicle = new Car(plate, isVip, hasCard); break;
+        }
+        
         tableModel.setRowCount(0); 
 
         String sql = "SELECT * FROM parking_spots WHERE current_vehicle_plate IS NULL";
