@@ -48,7 +48,8 @@ public class ExitPanel extends JPanel {
         // --- UPDATED: Simplified Payment Methods ---
         String[] methods = {"Cash", "Card"}; 
         cmbPaymentMethod = new JComboBox<>(methods);
-        cmbPaymentMethod.setEnabled(false); 
+        cmbPaymentMethod.setEnabled(false);
+        cmbPaymentMethod.setPreferredSize(new Dimension(75, cmbPaymentMethod.getPreferredSize().height));
         bottomPanel.add(cmbPaymentMethod);
 
         btnPay = new JButton("CONFIRM PAYMENT & EXIT");

@@ -73,6 +73,7 @@ public class ReportPanel extends JPanel {
         JPanel filterPanel = new JPanel();
         JComboBox<String> cmbType = new JComboBox<>(new String[]{"All", "Parking Fee", "Fine"});
         JComboBox<String> cmbMethod = new JComboBox<>(new String[]{"All", "Cash", "Card"});
+        cmbMethod.setPreferredSize(new Dimension(75, cmbMethod.getPreferredSize().height));
         JButton btnLoad = new JButton("Generate Report");
         
         filterPanel.add(new JLabel("Type:")); filterPanel.add(cmbType);
