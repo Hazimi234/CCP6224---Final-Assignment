@@ -1,12 +1,15 @@
 package src.ui;
 
 import java.awt.*;
-import java.sql.*;
+import java.util.List;
+import java.util.Map;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import src.manager.ParkingSystemFacade;
 
 public class ReportPanel extends JPanel {
     private JTabbedPane tabs;
+    private ParkingSystemFacade facade = new ParkingSystemFacade();
     private Runnable[] refreshTasks = new Runnable[4];
 
     public ReportPanel() {
@@ -40,23 +43,10 @@ public class ReportPanel extends JPanel {
         
         Runnable refreshAction = () -> {
             model.setRowCount(0);
-            String sql = "SELECT s.spot_id, s.current_vehicle_plate, v.vehicle_type, t.entry_time_millis " +
-                         "FROM parking_spots s " +
-                         "JOIN vehicles v ON s.current_vehicle_plate = v.license_plate " +
-                         "JOIN tickets t ON s.current_vehicle_plate = t.license_plate " +
-                         "WHERE s.current_vehicle_plate IS NOT NULL AND t.exit_time_millis IS NULL";
-            try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
-                 Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery(sql)) {
-                while(rs.next()) {
-                    long time = rs.getLong("entry_time_millis");
-                    String dateStr = new java.text.SimpleDateFormat("dd-MM HH:mm").format(new java.util.Date(time));
-                    model.addRow(new Object[]{
-                        rs.getString("spot_id"), rs.getString("current_vehicle_plate"), 
-                        rs.getString("vehicle_type"), dateStr
-                    });
-                }
-            } catch (SQLException ex) { ex.printStackTrace(); }
+            List<Object[]> data = facade.getParkedVehiclesReport();
+            for (Object[] row : data) {
+                model.addRow(row);
+            }
         };
 
         refreshTasks[0] = refreshAction;
@@ -66,6 +56,7 @@ public class ReportPanel extends JPanel {
     }
 
     // --- 2. Revenue Report ---
+    @SuppressWarnings("unchecked")
     private JPanel createRevenueReportPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         
@@ -97,44 +88,15 @@ public class ReportPanel extends JPanel {
 
         Runnable refreshAction = () -> {
             model.setRowCount(0);
-            double total = 0;
             String typeFilter = (String) cmbType.getSelectedItem();
             String methodFilter = (String) cmbMethod.getSelectedItem();
 
-            // Query Tickets
-            if (typeFilter.equals("All") || typeFilter.equals("Parking Fee")) {
-                String sql = "SELECT ticket_id, parking_fee, payment_method FROM tickets WHERE is_paid=1";
-                try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
-                     Statement stmt = conn.createStatement();
-                     ResultSet rs = stmt.executeQuery(sql)) {
-                    while(rs.next()) {
-                        String method = rs.getString("payment_method");
-                        if (method == null) method = "Unknown";
-                        if (!methodFilter.equals("All") && !method.equalsIgnoreCase(methodFilter)) continue;
-
-                        double amt = rs.getDouble("parking_fee");
-                        total += amt;
-                        model.addRow(new Object[]{"Parking Fee", rs.getString("ticket_id"), String.format("%.2f", amt), method});
-                    }
-                } catch (SQLException ex) { ex.printStackTrace(); }
-            }
-
-            // Query Fines
-            if (typeFilter.equals("All") || typeFilter.equals("Fine")) {
-                String sql = "SELECT fine_id, amount, payment_method FROM fines WHERE is_paid=1";
-                try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
-                     Statement stmt = conn.createStatement();
-                     ResultSet rs = stmt.executeQuery(sql)) {
-                    while(rs.next()) {
-                        String method = rs.getString("payment_method");
-                        if (method == null) method = "Unknown";
-                        if (!methodFilter.equals("All") && !method.equalsIgnoreCase(methodFilter)) continue;
-
-                        double amt = rs.getDouble("amount");
-                        total += amt;
-                        model.addRow(new Object[]{"Fine", rs.getString("fine_id"), String.format("%.2f", amt), method});
-                    }
-                } catch (SQLException ex) { ex.printStackTrace(); }
+            Map<String, Object> result = facade.getRevenueReport(typeFilter, methodFilter);
+            double total = (double) result.get("total");
+            List<Object[]> rows = (List<Object[]>) result.get("rows");
+            
+            for (Object[] row : rows) {
+                model.addRow(row);
             }
             lblTotal.setText("Total Revenue: RM " + String.format("%.2f", total));
         };
@@ -172,28 +134,13 @@ public class ReportPanel extends JPanel {
             typeModel.setRowCount(0);
             floorModel.setRowCount(0);
 
-            try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
-                 Statement stmt = conn.createStatement()) {
-                
-                // Type Stats
-                ResultSet rsType = stmt.executeQuery("SELECT spot_type, COUNT(*) as total, SUM(CASE WHEN current_vehicle_plate IS NOT NULL THEN 1 ELSE 0 END) as occupied FROM parking_spots GROUP BY spot_type");
-                while(rsType.next()) {
-                    int occ = rsType.getInt("occupied");
-                    int tot = rsType.getInt("total");
-                    double pct = (double)occ/tot * 100;
-                    typeModel.addRow(new Object[]{rsType.getString("spot_type"), occ, tot, String.format("%.1f%%", pct)});
-                }
-
-                // Floor Stats
-                ResultSet rsFloor = stmt.executeQuery("SELECT floor_level, COUNT(*) as total, SUM(CASE WHEN current_vehicle_plate IS NOT NULL THEN 1 ELSE 0 END) as occupied FROM parking_spots GROUP BY floor_level");
-                while(rsFloor.next()) {
-                    int occ = rsFloor.getInt("occupied");
-                    int tot = rsFloor.getInt("total");
-                    double pct = (double)occ/tot * 100;
-                    floorModel.addRow(new Object[]{"Floor " + rsFloor.getInt("floor_level"), occ, tot, String.format("%.1f%%", pct)});
-                }
-
-            } catch (SQLException ex) { ex.printStackTrace(); }
+            Map<String, List<Object[]>> data = facade.getOccupancyReport();
+            for (Object[] row : data.get("type")) {
+                typeModel.addRow(row);
+            }
+            for (Object[] row : data.get("floor")) {
+                floorModel.addRow(row);
+            }
         };
 
         refreshTasks[2] = refreshAction;
@@ -210,18 +157,10 @@ public class ReportPanel extends JPanel {
         
         Runnable refreshAction = () -> {
             model.setRowCount(0);
-            String sql = "SELECT license_plate, amount, reason FROM fines WHERE is_paid = 0";
-            try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
-                 Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery(sql)) {
-                while(rs.next()) {
-                    model.addRow(new Object[]{
-                        rs.getString("license_plate"), 
-                        String.format("%.2f", rs.getDouble("amount")), 
-                        rs.getString("reason")
-                    });
-                }
-            } catch (SQLException ex) { ex.printStackTrace(); }
+            List<Object[]> data = facade.getFinesReport();
+            for (Object[] row : data) {
+                model.addRow(row);
+            }
         };
 
         refreshTasks[3] = refreshAction;
