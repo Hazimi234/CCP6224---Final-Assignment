@@ -1,13 +1,13 @@
 package src.ui;
 
-import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.TimeZone;
 import java.util.Vector;
-import java.text.SimpleDateFormat; // NEW IMPORT
-import java.util.Date;            // NEW IMPORT
-import java.util.TimeZone;        // NEW IMPORT
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;        
 import src.model.Vehicle; 
 
 public class EntryPanel extends JPanel {
@@ -24,7 +24,8 @@ public class EntryPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // --- TOP: Input Form ---
-        JPanel formPanel = new JPanel(new GridLayout(5, 2, 5, 5)); 
+        JPanel topContainer = new JPanel(new BorderLayout());
+        JPanel formPanel = new JPanel(new GridLayout(4, 2, 5, 5)); 
         
         formPanel.add(new JLabel("License Plate:"));
         txtPlate = new JTextField();
@@ -55,10 +56,14 @@ public class EntryPanel extends JPanel {
         });
 
         JButton btnFind = new JButton("Find Available Spots");
+        btnFind.setPreferredSize(new Dimension(250, 35));
         btnFind.addActionListener(e -> findSpots());
-        formPanel.add(btnFind);
         
-        add(formPanel, BorderLayout.NORTH);
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        btnPanel.add(btnFind);
+        topContainer.add(formPanel, BorderLayout.CENTER);
+        topContainer.add(btnPanel, BorderLayout.SOUTH);
+        add(topContainer, BorderLayout.NORTH);
 
         // --- CENTER: Spot Selection Table ---
         String[] columns = {"Spot ID", "Floor", "Type", "Rate (RM/hr)"};
@@ -79,16 +84,24 @@ public class EntryPanel extends JPanel {
     }
 
     private void findSpots() {
-        String type = (String) cmbType.getSelectedItem();
-        boolean isVip = chkVip.isSelected();
-        boolean hasCard = chkHandicappedCard.isSelected();
         String plate = txtPlate.getText().trim();
-        
         if (plate.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Please enter a license plate first.");
             return;
         }
 
+        // --- FIX 1: Check if this car is already inside BEFORE searching ---
+        if (isVehicleAlreadyParked(plate)) {
+            JOptionPane.showMessageDialog(this, 
+                "ERROR: Vehicle " + plate + " is already inside the parking lot!", 
+                "Duplicate Entry", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        String type = (String) cmbType.getSelectedItem();
+        boolean isVip = chkVip.isSelected();
+        boolean hasCard = chkHandicappedCard.isSelected();
+        
         Vehicle tempVehicle = new Vehicle(plate, type, isVip, hasCard);
         tableModel.setRowCount(0); 
 
@@ -116,6 +129,23 @@ public class EntryPanel extends JPanel {
         }
     }
 
+    // --- NEW HELPER METHOD TO PREVENT DUPLICATES ---
+    private boolean isVehicleAlreadyParked(String plate) {
+        String sql = "SELECT count(*) FROM parking_spots WHERE current_vehicle_plate = ?";
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+            pstmt.setString(1, plate);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1) > 0; // Returns true if count > 0 (Car is found)
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
     private void parkVehicle() {
         int selectedRow = spotTable.getSelectedRow();
         if (selectedRow == -1) {
@@ -123,8 +153,17 @@ public class EntryPanel extends JPanel {
             return;
         }
 
-        String spotID = (String) tableModel.getValueAt(selectedRow, 0);
         String plate = txtPlate.getText().trim().toUpperCase();
+        
+        // --- FIX 2: Double check just in case they changed the text box after clicking Find ---
+        if (isVehicleAlreadyParked(plate)) {
+            JOptionPane.showMessageDialog(this, 
+                "ERROR: Vehicle " + plate + " is already inside!", 
+                "Duplicate Entry", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        String spotID = (String) tableModel.getValueAt(selectedRow, 0);
         String type = (String) cmbType.getSelectedItem();
         boolean isVip = chkVip.isSelected();
         boolean hasCard = chkHandicappedCard.isSelected(); 
@@ -153,18 +192,11 @@ public class EntryPanel extends JPanel {
                 pstmtS.setString(2, spotID);
                 pstmtS.executeUpdate();
 
-                // 3. Generate Ticket (UPDATED FOR MALAYSIA TIME)
-                // ---------------------------------------------------------
-                // Create a formatter for "DayMonthYear-HourMinuteSecond"
+                // 3. Generate Ticket (Malaysia Time)
                 SimpleDateFormat sdf = new SimpleDateFormat("ddMMyyyy-HHmmss");
-                
-                // FORCE it to use Malaysia Time (Asia/Kuala_Lumpur)
                 sdf.setTimeZone(TimeZone.getTimeZone("Asia/Kuala_Lumpur"));
-                
-                String myTime = sdf.format(new Date(entryTime)); // e.g., 09022026-143000
-                
+                String myTime = sdf.format(new Date(entryTime)); 
                 String ticketID = "T-" + plate + "-" + myTime; 
-                // ---------------------------------------------------------
 
                 pstmtT.setString(1, ticketID);
                 pstmtT.setString(2, plate);

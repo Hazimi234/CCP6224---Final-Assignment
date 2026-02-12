@@ -2,22 +2,22 @@ package src.util;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.Statement;
 import java.sql.ResultSet;
+import java.sql.Statement;
 
 public class DatabaseSetup {
     private static final String URL = "jdbc:sqlite:parking_lot.db";
 
     public static void createNewDatabase() {
-        // 1. VEHICLES TABLE (Updated with Card Checkbox)
+        boolean isFirstRun = false; // Flag to track if we actually created new things
+
         String sqlVehicles = "CREATE TABLE IF NOT EXISTS vehicles (\n"
                 + " license_plate TEXT PRIMARY KEY,\n"
                 + " vehicle_type TEXT NOT NULL,\n" 
-                + " is_vip INTEGER DEFAULT 0,\n"            // 1 = VIP
-                + " has_handicapped_card INTEGER DEFAULT 0\n" // 1 = Has Card (Double Verification)
+                + " is_vip INTEGER DEFAULT 0,\n"
+                + " has_handicapped_card INTEGER DEFAULT 0\n"
                 + ");";
 
-        // 2. PARKING SPOTS TABLE
         String sqlSpots = "CREATE TABLE IF NOT EXISTS parking_spots (\n"
                 + " spot_id TEXT PRIMARY KEY,\n"
                 + " floor_level INTEGER,\n"
@@ -29,7 +29,6 @@ public class DatabaseSetup {
                 + " FOREIGN KEY (current_vehicle_plate) REFERENCES vehicles(license_plate)\n"
                 + ");";
 
-        // 3. TICKETS TABLE 
         String sqlTickets = "CREATE TABLE IF NOT EXISTS tickets (\n"
                 + " ticket_id TEXT PRIMARY KEY,\n"
                 + " license_plate TEXT,\n"
@@ -38,18 +37,25 @@ public class DatabaseSetup {
                 + " exit_time_millis INTEGER,\n"
                 + " parking_fee REAL DEFAULT 0.0,\n"
                 + " is_paid INTEGER DEFAULT 0,\n"
+                + " payment_method TEXT,\n"
                 + " FOREIGN KEY (license_plate) REFERENCES vehicles(license_plate),\n"
                 + " FOREIGN KEY (spot_id) REFERENCES parking_spots(spot_id)\n"
                 + ");";
 
-        // 4. FINES TABLE
         String sqlFines = "CREATE TABLE IF NOT EXISTS fines (\n"
                 + " fine_id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
                 + " license_plate TEXT,\n"
                 + " amount REAL,\n"
                 + " reason TEXT,\n"
                 + " is_paid INTEGER DEFAULT 0,\n"
+                + " payment_method TEXT,\n"
                 + " FOREIGN KEY (license_plate) REFERENCES vehicles(license_plate)\n"
+                + ");";
+
+        // --- NEW: Settings Table to remember Fine Strategy ---
+        String sqlSettings = "CREATE TABLE IF NOT EXISTS app_settings (\n"
+                + " setting_key TEXT PRIMARY KEY,\n"
+                + " setting_value TEXT\n"
                 + ");";
 
         try (Connection conn = DriverManager.getConnection(URL);
@@ -59,12 +65,33 @@ public class DatabaseSetup {
             stmt.execute(sqlSpots);
             stmt.execute(sqlTickets);
             stmt.execute(sqlFines);
+            stmt.execute(sqlSettings);
             
-            System.out.println("Database tables created successfully.");
-            
+            // --- MIGRATION: Add payment_method column if it doesn't exist (for existing DBs) ---
+            try {
+                stmt.execute("ALTER TABLE tickets ADD COLUMN payment_method TEXT");
+                stmt.execute("ALTER TABLE fines ADD COLUMN payment_method TEXT");
+            } catch (Exception e) {
+                // Ignore error if columns already exist
+            }
+
+            // Check if we need to initialize spots (First Run Logic)
             ResultSet rs = stmt.executeQuery("SELECT count(*) FROM parking_spots");
             if (rs.next() && rs.getInt(1) == 0) {
                 initializeSpots(stmt);
+                isFirstRun = true;
+            }
+
+            // Check if we need to set default strategy
+            ResultSet rsSet = stmt.executeQuery("SELECT count(*) FROM app_settings WHERE setting_key = 'fine_strategy'");
+            if (rsSet.next() && rsSet.getInt(1) == 0) {
+                stmt.execute("INSERT INTO app_settings (setting_key, setting_value) VALUES ('fine_strategy', 'Option A')");
+            }
+
+            if (isFirstRun) {
+                System.out.println("System Setup Complete: Database initialized.");
+            } else {
+                System.out.println("System Ready: Connected to existing database.");
             }
 
         } catch (Exception e) {
@@ -72,7 +99,6 @@ public class DatabaseSetup {
         }
     }
 
-    // Logic to create 50 spots (Same as before)
     private static void initializeSpots(Statement stmt) throws Exception {
         System.out.println("Initializing 50 parking spots...");
         for (int floor = 1; floor <= 5; floor++) {
@@ -98,7 +124,6 @@ public class DatabaseSetup {
                 }
             }
         }
-        System.out.println("Spots initialized.");
     }
 
     public static void main(String[] args) {
