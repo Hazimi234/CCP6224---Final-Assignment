@@ -56,7 +56,6 @@ public class ReportPanel extends JPanel {
     }
 
     // --- 2. Revenue Report ---
-    @SuppressWarnings("unchecked")
     private JPanel createRevenueReportPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         

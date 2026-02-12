@@ -13,6 +13,7 @@ public class ParkingSystemFacade {
     private ExitManager exitManager = new ExitManager();
     private AdminManager adminManager = new AdminManager();
     private ReportManager reportManager = new ReportManager();
+    private MapManager mapManager = new MapManager();
 
     public boolean isVehicleAlreadyParked(String plate) {
         return entryManager.isVehicleAlreadyParked(plate);
@@ -40,7 +41,7 @@ public class ParkingSystemFacade {
     public double getTotalRevenue() { return adminManager.getTotalRevenue(); }
     public List<Object[]> getLiveVehicles() { return adminManager.getLiveVehicles(); }
     public void runComplianceScan() { adminManager.runComplianceScan(); }
-    public List<Map<String, Object>> getMapSpots() { return adminManager.getMapSpots(); }
+    public List<Map<String, Object>> getMapSpots() { return mapManager.getMapSpots(); }
 
     // --- REPORT FACADE METHODS ---
     public List<Object[]> getParkedVehiclesReport() { return reportManager.getParkedVehicles(); }
