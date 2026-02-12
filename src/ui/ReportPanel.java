@@ -38,7 +38,6 @@ public class ReportPanel extends JPanel {
         DefaultTableModel model = new DefaultTableModel(cols, 0);
         JTable table = new JTable(model);
         
-        JButton btnRefresh = new JButton("Refresh List");
         Runnable refreshAction = () -> {
             model.setRowCount(0);
             String sql = "SELECT s.spot_id, s.current_vehicle_plate, v.vehicle_type, t.entry_time_millis " +
@@ -61,10 +60,8 @@ public class ReportPanel extends JPanel {
         };
 
         refreshTasks[0] = refreshAction;
-        btnRefresh.addActionListener(e -> refreshAction.run());
 
         panel.add(new JScrollPane(table), BorderLayout.CENTER);
-        panel.add(btnRefresh, BorderLayout.SOUTH);
         return panel;
     }
 
@@ -81,16 +78,21 @@ public class ReportPanel extends JPanel {
         filterPanel.add(new JLabel("Type:")); filterPanel.add(cmbType);
         filterPanel.add(new JLabel("Method:")); filterPanel.add(cmbMethod);
         filterPanel.add(btnLoad);
-        panel.add(filterPanel, BorderLayout.NORTH);
 
         String[] cols = {"Source", "Reference ID", "Amount (RM)", "Payment Method"};
         DefaultTableModel model = new DefaultTableModel(cols, 0);
         JTable table = new JTable(model);
         panel.add(new JScrollPane(table), BorderLayout.CENTER);
 
-        JLabel lblTotal = new JLabel("Total: RM 0.00");
+        JLabel lblTotal = new JLabel("Total: RM 0.00", SwingConstants.CENTER);
         lblTotal.setFont(new Font("Arial", Font.BOLD, 14));
-        panel.add(lblTotal, BorderLayout.SOUTH);
+        lblTotal.setOpaque(true);
+        lblTotal.setBackground(new Color(200, 255, 200));
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(lblTotal, BorderLayout.NORTH);
+        topPanel.add(filterPanel, BorderLayout.CENTER);
+        panel.add(topPanel, BorderLayout.NORTH);
 
         Runnable refreshAction = () -> {
             model.setRowCount(0);
@@ -165,9 +167,6 @@ public class ReportPanel extends JPanel {
         content.add(floorScroll);
         panel.add(content, BorderLayout.CENTER);
 
-        JButton btnRefresh = new JButton("Refresh Statistics");
-        panel.add(btnRefresh, BorderLayout.SOUTH);
-
         Runnable refreshAction = () -> {
             typeModel.setRowCount(0);
             floorModel.setRowCount(0);
@@ -197,7 +196,6 @@ public class ReportPanel extends JPanel {
         };
 
         refreshTasks[2] = refreshAction;
-        btnRefresh.addActionListener(e -> refreshAction.run());
 
         return panel;
     }
@@ -209,7 +207,6 @@ public class ReportPanel extends JPanel {
         DefaultTableModel model = new DefaultTableModel(cols, 0);
         JTable table = new JTable(model);
         
-        JButton btnRefresh = new JButton("Load Unpaid Fines");
         Runnable refreshAction = () -> {
             model.setRowCount(0);
             String sql = "SELECT license_plate, amount, reason FROM fines WHERE is_paid = 0";
@@ -227,10 +224,8 @@ public class ReportPanel extends JPanel {
         };
 
         refreshTasks[3] = refreshAction;
-        btnRefresh.addActionListener(e -> refreshAction.run());
 
         panel.add(new JScrollPane(table), BorderLayout.CENTER);
-        panel.add(btnRefresh, BorderLayout.SOUTH);
         return panel;
     }
 }
