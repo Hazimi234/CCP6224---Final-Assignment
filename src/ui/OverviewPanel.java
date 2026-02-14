@@ -2,10 +2,13 @@ package src.ui;
 
 import javax.swing.*;
 import java.awt.*;
-import java.sql.*;
+import java.util.List;
+import java.util.Map;
+import src.manager.ParkingSystemFacade;
 
 public class OverviewPanel extends JPanel {
     private JPanel gridPanel;
+    private ParkingSystemFacade facade = new ParkingSystemFacade();
     private JLabel statusLabel;
 
     public OverviewPanel() {
@@ -45,20 +48,14 @@ public class OverviewPanel extends JPanel {
     public void loadParkingSpots() {
         gridPanel.removeAll(); 
 
-        String url = "jdbc:sqlite:parking_lot.db";
-        String sql = "SELECT spot_id, spot_type, current_vehicle_plate FROM parking_spots ORDER BY spot_id";
+        List<Map<String, Object>> spots = facade.getMapSpots();
+        for (Map<String, Object> s : spots) {
+            String id = (String) s.get("id");
+            String type = (String) s.get("type");
+            String plate = (String) s.get("plate");
+            boolean isOccupied = (boolean) s.get("occupied");
 
-        try (Connection conn = DriverManager.getConnection(url);
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-
-            while (rs.next()) {
-                String id = rs.getString("spot_id");
-                String type = rs.getString("spot_type");
-                String plate = rs.getString("current_vehicle_plate");
-                boolean isOccupied = (plate != null && !plate.isEmpty());
-
-                JPanel spot = new JPanel();
+            JPanel spot = new JPanel();
                 spot.setPreferredSize(new Dimension(80, 60));
                 spot.setBorder(BorderFactory.createLineBorder(Color.GRAY));
                 spot.setLayout(new BorderLayout());
@@ -72,10 +69,6 @@ public class OverviewPanel extends JPanel {
                 }
                 
                 gridPanel.add(spot);
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
 
         gridPanel.revalidate();
