@@ -1,14 +1,11 @@
 package src.ui;
 
 import java.awt.*;
-import java.sql.*;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.TimeZone;
 import java.util.Vector;
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;        
-import src.model.Vehicle; 
+import javax.swing.table.DefaultTableModel; 
+import src.manager.ParkingSystemFacade;
+import src.model.*;
 
 public class EntryPanel extends JPanel {
     private JTextField txtPlate;
@@ -18,6 +15,7 @@ public class EntryPanel extends JPanel {
     private JTable spotTable;
     private DefaultTableModel tableModel;
     private JButton btnPark;
+    private ParkingSystemFacade facade = new ParkingSystemFacade();
 
     public EntryPanel() {
         setLayout(new BorderLayout(10, 10));
@@ -91,7 +89,7 @@ public class EntryPanel extends JPanel {
         }
 
         // --- FIX 1: Check if this car is already inside BEFORE searching ---
-        if (isVehicleAlreadyParked(plate)) {
+        if (facade.isVehicleAlreadyParked(plate)) {
             JOptionPane.showMessageDialog(this, 
                 "ERROR: Vehicle " + plate + " is already inside the parking lot!", 
                 "Duplicate Entry", JOptionPane.ERROR_MESSAGE);
@@ -102,48 +100,21 @@ public class EntryPanel extends JPanel {
         boolean isVip = chkVip.isSelected();
         boolean hasCard = chkHandicappedCard.isSelected();
         
-        Vehicle tempVehicle = new Vehicle(plate, type, isVip, hasCard);
+        Vehicle tempVehicle;
+        switch (type) {
+            case "Car": tempVehicle = new Car(plate, isVip, hasCard); break;
+            case "Motorcycle": tempVehicle = new Motorcycle(plate, isVip, hasCard); break;
+            case "SUV": tempVehicle = new SUV(plate, isVip, hasCard); break;
+            case "Handicapped Vehicle": tempVehicle = new HandicappedVehicle(plate, isVip, hasCard); break;
+            default: tempVehicle = new Car(plate, isVip, hasCard); break;
+        }
+        
         tableModel.setRowCount(0); 
 
-        String sql = "SELECT * FROM parking_spots WHERE current_vehicle_plate IS NULL";
-        
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-
-            while (rs.next()) {
-                String spotType = rs.getString("spot_type");
-                
-                if (tempVehicle.canFitInSpot(spotType)) {
-                    Vector<Object> row = new Vector<>();
-                    row.add(rs.getString("spot_id"));
-                    row.add(rs.getInt("floor_level"));
-                    row.add(spotType);
-                    row.add(rs.getDouble("hourly_rate"));
-                    tableModel.addRow(row);
-                }
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage());
+        java.util.List<Vector<Object>> spots = facade.findMatchingSpots(tempVehicle);
+        for (Vector<Object> row : spots) {
+            tableModel.addRow(row);
         }
-    }
-
-    // --- NEW HELPER METHOD TO PREVENT DUPLICATES ---
-    private boolean isVehicleAlreadyParked(String plate) {
-        String sql = "SELECT count(*) FROM parking_spots WHERE current_vehicle_plate = ?";
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
-            pstmt.setString(1, plate);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt(1) > 0; // Returns true if count > 0 (Car is found)
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return false;
     }
 
     private void parkVehicle() {
@@ -156,7 +127,7 @@ public class EntryPanel extends JPanel {
         String plate = txtPlate.getText().trim().toUpperCase();
         
         // --- FIX 2: Double check just in case they changed the text box after clicking Find ---
-        if (isVehicleAlreadyParked(plate)) {
+        if (facade.isVehicleAlreadyParked(plate)) {
             JOptionPane.showMessageDialog(this, 
                 "ERROR: Vehicle " + plate + " is already inside!", 
                 "Duplicate Entry", JOptionPane.ERROR_MESSAGE);
@@ -167,56 +138,24 @@ public class EntryPanel extends JPanel {
         String type = (String) cmbType.getSelectedItem();
         boolean isVip = chkVip.isSelected();
         boolean hasCard = chkHandicappedCard.isSelected(); 
-        long entryTime = System.currentTimeMillis();
+        
+        Vehicle vehicle;
+        switch (type) {
+            case "Car": vehicle = new Car(plate, isVip, hasCard); break;
+            case "Motorcycle": vehicle = new Motorcycle(plate, isVip, hasCard); break;
+            case "SUV": vehicle = new SUV(plate, isVip, hasCard); break;
+            case "Handicapped Vehicle": vehicle = new HandicappedVehicle(plate, isVip, hasCard); break;
+            default: vehicle = new Car(plate, isVip, hasCard); break;
+        }
 
-        String sqlVehicle = "INSERT OR REPLACE INTO vehicles (license_plate, vehicle_type, is_vip, has_handicapped_card) VALUES (?, ?, ?, ?)";
-        String sqlSpot = "UPDATE parking_spots SET current_vehicle_plate = ? WHERE spot_id = ?";
-        String sqlTicket = "INSERT INTO tickets (ticket_id, license_plate, spot_id, entry_time_millis) VALUES (?, ?, ?, ?)";
-
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db")) {
-            conn.setAutoCommit(false); 
-
-            try (PreparedStatement pstmtV = conn.prepareStatement(sqlVehicle);
-                 PreparedStatement pstmtS = conn.prepareStatement(sqlSpot);
-                 PreparedStatement pstmtT = conn.prepareStatement(sqlTicket)) {
-
-                // 1. Save Vehicle
-                pstmtV.setString(1, plate);
-                pstmtV.setString(2, type);
-                pstmtV.setInt(3, isVip ? 1 : 0);
-                pstmtV.setInt(4, hasCard ? 1 : 0); 
-                pstmtV.executeUpdate();
-
-                // 2. Update Spot
-                pstmtS.setString(1, plate);
-                pstmtS.setString(2, spotID);
-                pstmtS.executeUpdate();
-
-                // 3. Generate Ticket (Malaysia Time)
-                SimpleDateFormat sdf = new SimpleDateFormat("ddMMyyyy-HHmmss");
-                sdf.setTimeZone(TimeZone.getTimeZone("Asia/Kuala_Lumpur"));
-                String myTime = sdf.format(new Date(entryTime)); 
-                String ticketID = "T-" + plate + "-" + myTime; 
-
-                pstmtT.setString(1, ticketID);
-                pstmtT.setString(2, plate);
-                pstmtT.setString(3, spotID);
-                pstmtT.setLong(4, entryTime);
-                pstmtT.executeUpdate();
-
-                conn.commit(); 
-
-                JOptionPane.showMessageDialog(this, "Vehicle Parked!\nTicket: " + ticketID);
-                txtPlate.setText("");
-                tableModel.setRowCount(0);
-                chkHandicappedCard.setSelected(false);
-                chkHandicappedCard.setEnabled(false);
-
-            } catch (SQLException e) {
-                conn.rollback(); 
-                throw e;
-            }
-        } catch (SQLException ex) {
+        try {
+            String ticketID = facade.parkVehicle(vehicle, spotID);
+            JOptionPane.showMessageDialog(this, "Vehicle Parked!\nTicket: " + ticketID);
+            txtPlate.setText("");
+            tableModel.setRowCount(0);
+            chkHandicappedCard.setSelected(false);
+            chkHandicappedCard.setEnabled(false);
+        } catch (Exception ex) {
             ex.printStackTrace();
             JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
         }
