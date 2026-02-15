@@ -7,14 +7,14 @@ import src.model.Vehicle;
 
 public class ParkingSystemFacade {
 
-    // EntryManager and ExitManager are in the same package (src.manager), 
-    // so no import is needed.
+    // Managers
     private EntryManager entryManager = new EntryManager();
     private ExitManager exitManager = new ExitManager();
     private AdminManager adminManager = new AdminManager();
     private ReportManager reportManager = new ReportManager();
     private MapManager mapManager = new MapManager();
 
+    // --- ENTRY FACADE METHODS ---
     public boolean isVehicleAlreadyParked(String plate) {
         return entryManager.isVehicleAlreadyParked(plate);
     }
@@ -27,6 +27,7 @@ public class ParkingSystemFacade {
         return entryManager.parkVehicle(vehicle, spotID);
     }
 
+    // --- EXIT FACADE METHODS ---
     public BillData calculateBill(String plate) throws SQLException {
         return exitManager.calculateBill(plate);
     }
