@@ -5,7 +5,7 @@ import java.util.*;
 import src.model.strategy.*;
 
 public class AdminManager {
-    
+    // Default if no setting found
     public static FineStrategy currentFineStrategy = new FixedFineStrategy();
 
     public String loadSavedStrategy() {
@@ -18,7 +18,7 @@ public class AdminManager {
             if (rs.next()) {
                 String savedOpt = rs.getString("setting_value");
                 if (savedOpt.equals("Option B")) {
-                    currentFineStrategy = new ProgressiveFineStrategy();
+                    currentFineStrategy = new ProgressiveFineStrategy(); 
                     strategyName = "Option B";
                 } else if (savedOpt.equals("Option C")) {
                     currentFineStrategy = new HourlyFineStrategy();
@@ -82,6 +82,7 @@ public class AdminManager {
         return list;
     }
 
+    // Scans all parked vehicles for compliance issues and updates fines accordingly
     public void runComplianceScan() {
         String sql = "SELECT s.spot_type, s.current_vehicle_plate, v.is_vip, t.entry_time_millis " +
                      "FROM parking_spots s " +
@@ -94,16 +95,17 @@ public class AdminManager {
              ResultSet rs = stmt.executeQuery(sql)) {
             
             long now = System.currentTimeMillis();
+            // Check each parked vehicle for reserved spot misuse and overstay
             while (rs.next()) {
                 String plate = rs.getString("current_vehicle_plate");
                 String spotType = rs.getString("spot_type");
                 boolean isVip = rs.getInt("is_vip") == 1;
                 long entryTime = rs.getLong("entry_time_millis");
-                
+                // If parked in a reserved spot without VIP status, apply a fixed fine
                 if ("Reserved".equalsIgnoreCase(spotType) && !isVip) {
                     updateOrInsertFine(conn, plate, 50.0, "Misuse of Reserved Spot");
                 }
-                
+                // Calculate hours overstayed and apply fine based on the current strategy
                 double hours = Math.ceil((now - entryTime) / (1000.0 * 60 * 60));
                 if (hours > 24 && currentFineStrategy != null) {
                     double fine = currentFineStrategy.calculateFine(hours);
@@ -114,7 +116,7 @@ public class AdminManager {
             }
         } catch (SQLException e) { e.printStackTrace(); }
     }
-
+    // update an existing fine or insert a new fine if none exists
     private void updateOrInsertFine(Connection conn, String plate, double amount, String reasonPrefix) throws SQLException {
         String checkSql = "SELECT fine_id, amount FROM fines WHERE license_plate = ? AND is_paid = 0 AND reason LIKE ?";
         try (PreparedStatement pstmt = conn.prepareStatement(checkSql)) {

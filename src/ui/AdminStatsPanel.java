@@ -1,10 +1,9 @@
 package src.ui;
 
+import java.awt.*;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
-import java.awt.*;
 import src.manager.ParkingSystemFacade;
-import src.model.strategy.*; 
 
 public class AdminStatsPanel extends JPanel {
     private JLabel lblTotalRevenue;
@@ -64,24 +63,28 @@ public class AdminStatsPanel extends JPanel {
         add(bottomPanel, BorderLayout.SOUTH);
 
         // --- LOAD SAVED DATA ---
-        refreshData();       
         loadSavedStrategy(); 
+        refreshData();       
     }
-
+    
+    // Loads the saved fine strategy from the database and updates the combo box selection
     private void loadSavedStrategy() {
         isLoading = true; 
         String savedOpt = facade.loadSavedStrategy();
         
-        if (savedOpt.equals("Option A")) {
-            cmbStrategy.setSelectedIndex(0);
-        } else if (savedOpt.equals("Option B")) {
-            cmbStrategy.setSelectedIndex(1);
-        } else if (savedOpt.equals("Option C")) {
-            cmbStrategy.setSelectedIndex(2);
+        if (savedOpt != null) {
+            if (savedOpt.equals("Option A")) {
+                cmbStrategy.setSelectedIndex(0);
+            } else if (savedOpt.equals("Option B")) {
+                cmbStrategy.setSelectedIndex(1);
+            } else if (savedOpt.equals("Option C")) {
+                cmbStrategy.setSelectedIndex(2);
+            }
         }
-            isLoading = false; 
+        isLoading = false; 
     }
 
+    // Updates the fine strategy in the database based on the selected option in the combo box
     private void updateStrategy() {
         String selectedFull = (String) cmbStrategy.getSelectedItem();
         String shortName = "Option A"; 
@@ -99,6 +102,7 @@ public class AdminStatsPanel extends JPanel {
         facade.saveStrategy(shortName);
         JOptionPane.showMessageDialog(this, "System Updated!\nNow using: " + shortName);
     }
+
 
     public void refreshData() {
         facade.runComplianceScan(); 
