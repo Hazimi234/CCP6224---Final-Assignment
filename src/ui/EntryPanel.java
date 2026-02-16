@@ -15,7 +15,7 @@ public class EntryPanel extends JPanel {
     private JTable spotTable;
     private DefaultTableModel tableModel;
     private JButton btnPark;
-    private ParkingSystemFacade facade = new ParkingSystemFacade();
+    private ParkingSystemFacade facade = new ParkingSystemFacade(); //Facade to handle backend operations
 
     public EntryPanel() {
         setLayout(new BorderLayout(10, 10));
@@ -80,7 +80,7 @@ public class EntryPanel extends JPanel {
         btnPark.addActionListener(e -> parkVehicle());
         add(btnPark, BorderLayout.SOUTH);
     }
-
+    //Reads the form data, validates the license plate, checks for duplicates
     private void findSpots() {
         String plate = txtPlate.getText().trim();
         if (plate.isEmpty()) {
@@ -88,7 +88,7 @@ public class EntryPanel extends JPanel {
             return;
         }
 
-        // --- FIX 1: Check if this car is already inside BEFORE searching ---
+
         if (facade.isVehicleAlreadyParked(plate)) {
             JOptionPane.showMessageDialog(this, 
                 "ERROR: Vehicle " + plate + " is already inside the parking lot!", 
@@ -110,13 +110,14 @@ public class EntryPanel extends JPanel {
         }
         
         tableModel.setRowCount(0); 
-
+        
+        //Fetch matching spots from the database from the facade
         java.util.List<Vector<Object>> spots = facade.findMatchingSpots(tempVehicle);
         for (Vector<Object> row : spots) {
             tableModel.addRow(row);
         }
     }
-
+    //Processes the final parking action. Registers the vehicle in the database, marks the selected spot as occupied, and generates a ticket.
     private void parkVehicle() {
         int selectedRow = spotTable.getSelectedRow();
         if (selectedRow == -1) {
@@ -126,7 +127,7 @@ public class EntryPanel extends JPanel {
 
         String plate = txtPlate.getText().trim().toUpperCase();
         
-        // --- FIX 2: Double check just in case they changed the text box after clicking Find ---
+        //Double check for duplicates in case the user edited the text box after clicking "Find"
         if (facade.isVehicleAlreadyParked(plate)) {
             JOptionPane.showMessageDialog(this, 
                 "ERROR: Vehicle " + plate + " is already inside!", 
@@ -139,6 +140,7 @@ public class EntryPanel extends JPanel {
         boolean isVip = chkVip.isSelected();
         boolean hasCard = chkHandicappedCard.isSelected(); 
         
+        //Build the vehicle model
         Vehicle vehicle;
         switch (type) {
             case "Car": vehicle = new Car(plate, isVip, hasCard); break;
@@ -147,10 +149,11 @@ public class EntryPanel extends JPanel {
             case "Handicapped Vehicle": vehicle = new HandicappedVehicle(plate, isVip, hasCard); break;
             default: vehicle = new Car(plate, isVip, hasCard); break;
         }
-
+        //Attempt to park the vehicle and show success message
         try {
             String ticketID = facade.parkVehicle(vehicle, spotID);
             JOptionPane.showMessageDialog(this, "Vehicle Parked!\nTicket: " + ticketID);
+            //Reset form for next entry
             txtPlate.setText("");
             tableModel.setRowCount(0);
             chkHandicappedCard.setSelected(false);

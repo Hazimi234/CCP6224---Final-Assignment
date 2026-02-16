@@ -5,10 +5,12 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
 import javax.swing.*;
-import src.model.BillData;
-import src.manager.ParkingSystemFacade;
 import src.manager.AdminManager;
+import src.manager.ParkingSystemFacade;
+import src.model.BillData;
 import src.model.strategy.HourlyFineStrategy;
+
+//ExitPanel provides UI for vehicles leaving the parking lot
 
 public class ExitPanel extends JPanel {
     private JTextField txtPlateSearch;
@@ -66,7 +68,7 @@ public class ExitPanel extends JPanel {
         actionPanel.add(new JLabel("Method:"));
         String[] methods = {"Cash", "Card"}; 
         cmbPaymentMethod = new JComboBox<>(methods);
-        cmbPaymentMethod.setEnabled(false);
+        cmbPaymentMethod.setEnabled(false); //false until bill is calculated
         actionPanel.add(cmbPaymentMethod);
 
         btnPay = new JButton("CONFIRM PAYMENT & EXIT");
@@ -80,6 +82,7 @@ public class ExitPanel extends JPanel {
         add(bottomPanel, BorderLayout.SOUTH);
     }
 
+    //finds corresponding license plate, and calculates bill, and fills ui with breakdown of fees and minimum amount required to pay before exiting
     private void calculateBill() {
         String plate = txtPlateSearch.getText().trim();
         if (plate.isEmpty()) return;
@@ -102,11 +105,11 @@ public class ExitPanel extends JPanel {
                 boolean isOptionC = (AdminManager.currentFineStrategy instanceof HourlyFineStrategy);
                 
                 if (isOptionC) {
-                    // Option C: Min = Ticket + Past Fines (Current Fine is optional)
+                    // Option C: Min = Ticket + Past Fines (Current Fine is optional) 
                     minRequired = bill.parkingFee + bill.pastFines;
                     lblMinPayment.setText("(Min: RM " + String.format("%.2f", minRequired) + " [Ticket + Past Due])");
                 } else {
-                    // Option A/B: Min = Total (Everything)
+                    // Option A/B: Min = Total (Everything)/ driver must pay the whole amount
                     minRequired = bill.totalAmount;
                     lblMinPayment.setText("(Min: RM " + String.format("%.2f", minRequired) + " [Full Bill])");
                 }
@@ -125,7 +128,7 @@ public class ExitPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
         }
     }
-
+    //checks input amount if passes minimum requirement, process the payment, vacates the spot & generates a receipt if successful 
     private void processPayment() {
         String plate = txtPlateSearch.getText().trim();
         long exitTime = System.currentTimeMillis();
@@ -144,6 +147,7 @@ public class ExitPanel extends JPanel {
             
             generateReceipt(plate, exitTime, method, paidAmount); 
             
+            //success reset
             txtBillArea.setText("Payment Successful!\nGate Opening...");
             txtPlateSearch.setText("");
             btnPay.setEnabled(false);
@@ -155,6 +159,7 @@ public class ExitPanel extends JPanel {
         }
     }
 
+    //display receipt upon success
     private void generateReceipt(String plate, long time, String method, double paid) {
         SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
         sdf.setTimeZone(TimeZone.getTimeZone("Asia/Kuala_Lumpur"));
