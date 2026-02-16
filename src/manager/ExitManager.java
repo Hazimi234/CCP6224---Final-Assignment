@@ -7,6 +7,7 @@ import src.model.strategy.HourlyFineStrategy;
 
 public class ExitManager {
 
+    //receives ticket info, calculates parking info, determines base fee, registers any immediate violation and adds on past unpaid fines
     public BillData calculateBill(String plate) throws SQLException {
         BillData data = new BillData();
         data.found = false;
@@ -19,6 +20,7 @@ public class ExitManager {
         double rate = 0.0;
         long entryTime = 0;
 
+        //receives active ticket, spot and vehicle details
         String sql = "SELECT t.ticket_id, t.entry_time_millis, t.spot_id, s.spot_type, s.hourly_rate, v.vehicle_type, v.is_vip, v.has_handicapped_card " +
                      "FROM tickets t " +
                      "JOIN parking_spots s ON t.spot_id = s.spot_id " +
@@ -44,10 +46,12 @@ public class ExitManager {
             }
             
             if (data.found) {
+                //calculate total time
                 long exitTime = System.currentTimeMillis();
                 double hours = Math.ceil((exitTime - entryTime) / (1000.0 * 60 * 60));
                 if (hours == 0) hours = 1;
 
+                //for handicapped discounts
                 double finalRate = rate;
                 if (vType.equals("Handicapped Vehicle") && hasCard) {
                     if (spotType.equals("Compact") || spotType.equals("Handicapped")) finalRate = 0.0;
@@ -57,6 +61,7 @@ public class ExitManager {
                 data.currentFine = 0.0;
                 data.pastFines = 0.0;
 
+                //receipt text
                 StringBuilder sb = new StringBuilder();
                 sb.append("Ticket ID:  ").append(data.ticketID).append("\n");
                 sb.append("Plate No:   ").append(plate).append("\n");
@@ -80,7 +85,7 @@ public class ExitManager {
                     data.currentFine += 50.0;
                 }
 
-                // --- UPDATED: Calculate Past Fines using (Amount - PaidAmount) ---
+                // Calculate Past Fines using (Amount - PaidAmount) 
                 String tag = "[" + data.ticketID + "]";
                 try (PreparedStatement psFines = conn.prepareStatement("SELECT amount, paid_amount, reason FROM fines WHERE license_plate = ? AND is_paid = 0")) {
                     psFines.setString(1, plate);
@@ -92,7 +97,6 @@ public class ExitManager {
                             double due = amt - paid;
 
                             if (rsn != null && rsn.contains(tag)) {
-                                // Already in current fines
                             } else {
                                 data.pastFines += due;
                             }
@@ -125,6 +129,7 @@ public class ExitManager {
         return data;
     }
 
+    //insert.update a fine tied to a specific parking session
     private void addInstantFine(Connection conn, String plate, double amount, String reasonPrefix, String ticketID) throws SQLException {
         String taggedReason = reasonPrefix + " [" + ticketID + "]";
         String checkSql = "SELECT fine_id, amount FROM fines WHERE license_plate = ? AND is_paid = 0 AND reason = ?";
@@ -147,6 +152,7 @@ public class ExitManager {
             }
         }
         
+        //insert new fine if didnt exist
         try (PreparedStatement insert = conn.prepareStatement("INSERT INTO fines (license_plate, amount, paid_amount, reason, is_paid) VALUES (?, ?, 0, ?, 0)")) {
             insert.setString(1, plate);
             insert.setDouble(2, amount);
@@ -154,7 +160,8 @@ public class ExitManager {
             insert.executeUpdate();
         }
     }
-
+    
+    //processes payment against past outstanding balance 
     public void processPayment(String ticketID, String spotID, String plate, double paidAmount, double feeCost, String method) throws SQLException {
         long exitTime = System.currentTimeMillis();
         
@@ -177,7 +184,7 @@ public class ExitManager {
                         double paid = rs.getDouble("paid_amount");
                         double due = amt - paid;
                         
-                        fineIds.add(rs.getInt("fine_id"));
+                        fineIds.add(rs.getInt("fine_id")); //keeps track of fines
                         
                         String rsn = rs.getString("reason");
                         if (rsn != null && rsn.contains(tag)) currentFines += due;
@@ -189,11 +196,14 @@ public class ExitManager {
                 boolean isOptionC = (AdminManager.currentFineStrategy instanceof HourlyFineStrategy);
                 double minReq = 0.0;
                 
+                //Hourly rule: Must pay base fee + past fines. Current fines become "past" next time.
                 if (isOptionC) {
                     minReq = feeCost + pastFines;
                     if (paidAmount < (minReq - 0.01)) {
                          throw new SQLException("Partial Payment Error.\nMin Required: RM " + String.format("%.2f", minReq));
                     }
+
+                // Fixed/Progressive rule: Must pay absolutely everything to exit.
                 } else {
                     minReq = feeCost + pastFines + currentFines;
                     if (paidAmount < (minReq - 0.01)) { 
@@ -230,17 +240,17 @@ public class ExitManager {
 
                         double due = amount - paidAlready;
                         double paymentForThisFine = Math.min(remaining, due);
-
+                        //apply partial or full payment to this fine
                         if (paymentForThisFine > 0) {
                             try (PreparedStatement pay = conn.prepareStatement(
                                 "UPDATE fines SET paid_amount = paid_amount + ?, payment_method = ?, is_paid = (CASE WHEN paid_amount + ? >= amount THEN 1 ELSE 0 END) WHERE fine_id = ?")) {
                                 pay.setDouble(1, paymentForThisFine);
                                 pay.setString(2, method);
-                                pay.setDouble(3, paymentForThisFine); // Check Logic
+                                pay.setDouble(3, paymentForThisFine); //Check Logic
                                 pay.setInt(4, fid);
                                 pay.executeUpdate();
                             }
-                            remaining -= paymentForThisFine;
+                            remaining -= paymentForThisFine; //Deduct from the user's available balance
                         }
                         
                         if (remaining <= 0.01) break;
