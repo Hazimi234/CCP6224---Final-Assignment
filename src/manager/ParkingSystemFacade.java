@@ -32,8 +32,8 @@ public class ParkingSystemFacade {
         return exitManager.calculateBill(plate);
     }
 
-    public void processPayment(String ticketID, String spotID, String plate, double amount, String method) throws SQLException {
-        exitManager.processPayment(ticketID, spotID, plate, amount, method);
+    public void processPayment(String ticketID, String spotID, String plate, double paidAmount, double feeCost, String method) throws SQLException {
+        exitManager.processPayment(ticketID, spotID, plate, paidAmount, feeCost, method);
     }
 
     // --- ADMIN FACADE METHODS ---
