@@ -150,7 +150,7 @@ public class ReportPanel extends JPanel {
     // --- 4. Fines Report ---
     private JPanel createFinesReportPanel() {
         JPanel panel = new JPanel(new BorderLayout());
-        String[] cols = {"License Plate", "Amount (RM)", "Reason"};
+        String[] cols = {"License Plate", "Amount (RM)", "Paid Amount"};
         DefaultTableModel model = new DefaultTableModel(cols, 0);
         JTable table = new JTable(model);
         

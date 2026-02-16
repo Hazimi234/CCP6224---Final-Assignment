@@ -11,7 +11,7 @@ public class DatabaseSetup {
     public static void createNewDatabase() {
         boolean isFirstRun = false; // Flag to track if the new things are created
 
-        // SQL to create the 'vehicles' table (stores owner info)
+        // 1. Vehicle Table: Stores owner info and VIP status
         String sqlVehicles = "CREATE TABLE IF NOT EXISTS vehicles (\n"
                 + " license_plate TEXT PRIMARY KEY,\n"
                 + " vehicle_type TEXT NOT NULL,\n"
@@ -19,7 +19,7 @@ public class DatabaseSetup {
                 + " has_handicapped_card INTEGER DEFAULT 0\n"
                 + ");";
 
-        // SQL to create 'parking_spots' table (the 50 static spots)
+        // 2. Parking Spots: The 50 static spots (F1-R1-S1, etc.)
         String sqlSpots = "CREATE TABLE IF NOT EXISTS parking_spots (\n"
                 + " spot_id TEXT PRIMARY KEY,\n"
                 + " floor_level INTEGER,\n"
@@ -31,7 +31,7 @@ public class DatabaseSetup {
                 + " FOREIGN KEY (current_vehicle_plate) REFERENCES vehicles(license_plate)\n"
                 + ");";
 
-        // SQL for 'tickets' (history of parkings)
+        // 3. Tickets: Records of entry/exit sessions
         String sqlTickets = "CREATE TABLE IF NOT EXISTS tickets (\n"
                 + " ticket_id TEXT PRIMARY KEY,\n"
                 + " license_plate TEXT,\n"
@@ -49,14 +49,15 @@ public class DatabaseSetup {
         String sqlFines = "CREATE TABLE IF NOT EXISTS fines (\n"
                 + " fine_id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
                 + " license_plate TEXT,\n"
-                + " amount REAL,\n"
+                + " amount REAL,\n" // The total penalty (e.g., RM 50.00)
+                + " paid_amount REAL DEFAULT 0,\n" // How much the user has paid so far (e.g., RM 20.00)
                 + " reason TEXT,\n"
-                + " is_paid INTEGER DEFAULT 0,\n"
+                + " is_paid INTEGER DEFAULT 0,\n" // 1 only if paid_amount >= amount
                 + " payment_method TEXT,\n"
                 + " FOREIGN KEY (license_plate) REFERENCES vehicles(license_plate)\n"
                 + ");";
 
-        // SQL for 'app_settings' (remembers the Admin's chosen Fine Strategy)
+        // 5. App Settings: Remembers the Admin's Fine Strategy choice
         String sqlSettings = "CREATE TABLE IF NOT EXISTS app_settings (\n"
                 + " setting_key TEXT PRIMARY KEY,\n"
                 + " setting_value TEXT\n"
@@ -72,15 +73,23 @@ public class DatabaseSetup {
             stmt.execute(sqlFines);
             stmt.execute(sqlSettings);
 
-            // --- MIGRATION: Add payment_method column if it doesn't exist (for existing DBs) ---
+            // --- MIGRATION: Ensure new columns exist in old databases ---
             try {
                 stmt.execute("ALTER TABLE tickets ADD COLUMN payment_method TEXT");
-                stmt.execute("ALTER TABLE fines ADD COLUMN payment_method TEXT");
             } catch (Exception e) {
-                // Ignore error if columns already exist
             }
 
-            // Check if need to initialize spots (First Run Logic)
+            try {
+                stmt.execute("ALTER TABLE fines ADD COLUMN payment_method TEXT");
+            } catch (Exception e) {
+            }
+
+            try {
+                stmt.execute("ALTER TABLE fines ADD COLUMN paid_amount REAL DEFAULT 0");
+            } catch (Exception e) {
+            }
+
+            // Check if this is a fresh install (no spots exist)
             ResultSet rs = stmt.executeQuery("SELECT count(*) FROM parking_spots");
             if (rs.next() && rs.getInt(1) == 0) {
                 initializeSpots(stmt);
@@ -121,10 +130,9 @@ public class DatabaseSetup {
                     if (floor == 1) {
                         type = "Compact";
                         rate = 2.0;
-                    }
 
                     // Floor 2, Row 1, Spots 1-3: Handicapped
-                    else if (floor == 2) {
+                    } else if (floor == 2) {
                         if (row == 1 && spot <= 3) {
                             type = "Handicapped";
                             rate = 2.0;
@@ -132,10 +140,9 @@ public class DatabaseSetup {
                             type = "Regular";
                             rate = 5.0;
                         }
-                    }
 
                     // Floor 5: Reserved
-                    else if (floor == 5) {
+                    } else if (floor == 5) {
                         type = "Reserved";
                         rate = 10.0;
                     }
