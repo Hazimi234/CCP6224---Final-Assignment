@@ -14,7 +14,10 @@ public class Ticket {
         this.vehicleType = vehicleType;
         this.spotID = spotID;
         this.entryTimeMillis = entryTimeMillis;
-        this.ticketID = "T-" + licensePlate + "-" + entryTimeMillis; // Generates ID like T-ABC1234-170992...
+
+        // Auto-generate a unique ID combining Plate + Time
+        // Example Result: "T-ABC1234-1709923400"
+        this.ticketID = "T-" + licensePlate + "-" + entryTimeMillis; 
     }
 
     // Getters
