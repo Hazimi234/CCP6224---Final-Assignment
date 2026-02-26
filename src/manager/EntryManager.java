@@ -7,7 +7,8 @@ import java.util.Date;
 import src.model.Vehicle;
 
 public class EntryManager {
-
+    
+    //check if vehicle is already parked
     public boolean isVehicleAlreadyParked(String plate) {
         String sql = "SELECT count(*) FROM parking_spots WHERE current_vehicle_plate = ?";
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:parking_lot.db");
@@ -23,6 +24,7 @@ public class EntryManager {
         return false;
     }
 
+    //finds vehicle spots that is compatible with the vehicle
     public List<Vector<Object>> findMatchingSpots(Vehicle vehicle) {
         List<Vector<Object>> matches = new ArrayList<>();
         String sql = "SELECT * FROM parking_spots WHERE current_vehicle_plate IS NULL";
@@ -33,6 +35,7 @@ public class EntryManager {
 
             while (rs.next()) {
                 String spotType = rs.getString("spot_type");
+                //if vehicle is allowed in the spot type
                 if (vehicle.canFitInSpot(spotType)) {
                     Vector<Object> row = new Vector<>();
                     row.add(rs.getString("spot_id"));
@@ -48,6 +51,7 @@ public class EntryManager {
         return matches;
     }
 
+    //registers vehicle entry in the database
     public String parkVehicle(Vehicle vehicle, String spotID) throws SQLException {
         long entryTime = System.currentTimeMillis();
         String plate = vehicle.getLicensePlate();

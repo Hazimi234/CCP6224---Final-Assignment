@@ -8,16 +8,17 @@ import src.manager.ParkingSystemFacade;
 
 public class OverviewPanel extends JPanel {
     private JPanel gridPanel;
+    // Uses the Facade to fetch data, keeping UI decoupled from SQL logic
     private ParkingSystemFacade facade = new ParkingSystemFacade();
-    private JLabel statusLabel;
 
     public OverviewPanel() {
         setLayout(new BorderLayout());
 
-        // Header
+        // --Header--
         JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT));
         header.add(new JLabel("Legend: "));
-        
+
+        // Visual guide for the user
         JLabel lblFree = new JLabel(" GREEN = Available ");
         lblFree.setOpaque(true);
         lblFree.setBackground(new Color(150, 255, 150));
@@ -27,50 +28,59 @@ public class OverviewPanel extends JPanel {
         lblOccupied.setOpaque(true);
         lblOccupied.setBackground(new Color(255, 150, 150));
         header.add(lblOccupied);
-        
-        // Add a manual refresh button just in case
+
+        // Manual refresh button (backup for the auto-refresh)
         JButton btnRefresh = new JButton("Refresh Map");
         btnRefresh.addActionListener(e -> loadParkingSpots());
         header.add(btnRefresh);
 
         add(header, BorderLayout.NORTH);
 
-        // The Grid
+        // --Grid Layout--
         gridPanel = new JPanel();
         // 5 Floors, 10 Spots per floor (2 rows x 5 cols) = 50 spots
-        gridPanel.setLayout(new GridLayout(5, 10, 5, 5)); 
+        gridPanel.setLayout(new GridLayout(5, 10, 5, 5));
         add(new JScrollPane(gridPanel), BorderLayout.CENTER);
 
+        // Load initial data
         loadParkingSpots();
     }
 
-    // Connects to DB and draws the squares
+    // Drawing Logic
     public void loadParkingSpots() {
-        gridPanel.removeAll(); 
+        gridPanel.removeAll();
 
+        // Fetch the raw list of 50 spots from the Facade -> MapManager
         List<Map<String, Object>> spots = facade.getMapSpots();
+
         for (Map<String, Object> s : spots) {
             String id = (String) s.get("id");
             String type = (String) s.get("type");
             String plate = (String) s.get("plate");
             boolean isOccupied = (boolean) s.get("occupied");
 
+            // Create a panel representing ONE spot
             JPanel spot = new JPanel();
-                spot.setPreferredSize(new Dimension(80, 60));
-                spot.setBorder(BorderFactory.createLineBorder(Color.GRAY));
-                spot.setLayout(new BorderLayout());
+            spot.setPreferredSize(new Dimension(80, 60));
+            spot.setBorder(BorderFactory.createLineBorder(Color.GRAY));
+            spot.setLayout(new BorderLayout());
 
-                if (isOccupied) {
-                    spot.setBackground(new Color(255, 150, 150)); // Red
-                    spot.add(new JLabel("<html><center><b>" + plate + "</b></center></html>", SwingConstants.CENTER), BorderLayout.CENTER);
-                } else {
-                    spot.setBackground(new Color(150, 255, 150)); // Green
-                    spot.add(new JLabel("<html><center>" + id + "<br><small>" + type + "</small></center></html>", SwingConstants.CENTER), BorderLayout.CENTER);
-                }
-                
-                gridPanel.add(spot);
+            if (isOccupied) {
+                // RED SQUARE: Show License Plate
+                spot.setBackground(new Color(255, 150, 150)); // Red
+                spot.add(new JLabel("<html><center><b>" + plate + "</b></center></html>", SwingConstants.CENTER),
+                        BorderLayout.CENTER);
+            } else {
+                // GREEN SQUARE: Show Spot ID and Type
+                spot.setBackground(new Color(150, 255, 150)); // Green
+                spot.add(new JLabel("<html><center>" + id + "<br><small>" + type + "</small></center></html>",
+                        SwingConstants.CENTER), BorderLayout.CENTER);
+            }
+
+            gridPanel.add(spot);
         }
 
+        // Refresh the UI to show the new squares
         gridPanel.revalidate();
         gridPanel.repaint();
     }
